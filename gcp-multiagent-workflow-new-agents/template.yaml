@@ -1,0 +1,917 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: multiagent-workflow-new-agents
+  title: GCP - Multi-Agent Workflow new agents
+  description: Template to deploy a Multiagent-workflow-agents
+  tags:
+    - gcp
+    - multiagent
+    - agent
+    - template
+spec:
+  owner: group:catalog-admin
+  type: multiagent
+
+  parameters:
+    - title: General Details Root Agent Configuration
+      required:
+        - owner
+        - region
+        - staging_bucket_name
+        - root_agent_display_name
+        - root_agent_class
+        - multiagent
+        - root_agent_description
+        - root_agent_model_id
+        - root_agent_instruction
+        - second_instruction
+        - lifecycle
+      properties:
+
+        root_agent_display_name:
+          title: Root Agent Display Name
+          type: string
+          description: Display name for the root agent
+          pattern: "^(?=.{3,63}$)[a-z]([a-z0-9_]*[a-z0-9])?$"
+          ui:help: "Must be 3–63 characters, start with a lowercase letter, can contain lowercase letters, numbers, and underscores, and end with a letter or number."
+
+        region:
+          title: Region
+          type: object
+          ui:field: custom_dropdown
+          description: Select the Region 
+          apiPath: /api/ai-components/regions/
+          attrKey: regionname
+        
+        staging_bucket_name:
+          title: Staging Bucket Name
+          type: string
+          description: "GCS bucket name for staging. Artifacts will be stored at  gs://{BUCKET_NAME}/{AGENT_DISPLAY_NAME}/"
+          pattern: "^(?=.{3,63}$)[a-z0-9](?:[a-z0-9._-]{1,61}[a-z0-9])$"
+          ui:help: "Must be 3–63 characters, start with a lowercase letter, end with a lowercase letter or number, and can include lowercase letters, numbers, dots, dashes, or underscores."
+
+        root_agent_class:
+          title: Root Agent Class
+          type: string
+          description: Class type for the root agent
+          default: LLMAgent
+          enum:
+            - LLMAgent
+          ui:widget: hidden  # Hide this field from the UI while still providing default value
+
+        multiagent:
+          title: Multi-Agent
+          type: boolean
+          ui:help: "Enable multi-agent functionality"
+          default: true
+          ui:widget: hidden
+
+        root_agent_description:
+          title: Root Agent Description
+          type: string
+          description: Description of the root agent's purpose
+          default: "This is GCP-Alpha Root Multiagent"
+
+        root_agent_model_id:
+          title: Root Agent Model
+          type: object
+          ui:field: custom_dropdown
+          description: Select the Model for Root Agent
+          apiPath: /api/ai-components/models/?provider_id=3&model_type=LLM%20Model
+          attrKey: modelname
+          requiredData:
+            - key: region.value
+              queryStringKey: region_name
+              title: Region
+
+        root_agent_instruction:
+          title: Global Instruction
+          type: string
+          ui:field: InfoTextArea
+          ui:options:
+            rows: 10
+            infoText: |
+              📋 Global Instruction Guidelines
+
+              Define overall behavior and capabilities:
+              • Keep concise but comprehensive (2-5 sentences)
+              • Define primary role and expertise area
+              • Specify tone and communication style
+              • Include important constraints or guidelines
+
+              Example: "You are an expert data analyst agent specialized in financial data processing. Your role is to analyze financial datasets, identify trends, and provide actionable insights. Always present findings in a clear, professional manner with supporting evidence. Focus on accuracy and avoid speculation."
+
+        second_instruction:
+          title: Instruction
+          type: string
+          ui:field: InfoTextArea
+          ui:options:
+            rows: 10
+            infoText: |
+              📋 Instruction Guidelines
+
+              Provide specific implementation details:
+              • Step-by-step task execution procedures
+              • Specific tools, methods, or frameworks to use
+              • Input/output format specifications  
+              • Error handling and edge case management
+              • Integration points with other agents/systems
+
+              Example: "When analyzing financial data: 1) Validate data integrity, 2) Apply statistical analysis using ROI/volatility metrics, 3) Generate visualizations, 4) Prepare JSON reports with 'insights', 'recommendations', 'confidence_score' fields, 5) Flag data quality issues immediately."
+
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the component
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+            - Group
+            
+        lifecycle:
+          title: Lifecycle
+          type: string
+          description: Provide the Lifecycle
+          enum:
+            - development
+            - staging
+            - production
+          default: development
+
+        temperature:
+          title: Temperature
+          type: number
+          description: Controls randomness in the output (0.0 to 2.0)
+          default: 0.7
+          minimum: 0.0
+          maximum: 2.0
+          ui:help: "Lower values make output more focused and deterministic, higher values make it more creative"
+
+        top_p:
+          title: Top P (Nucleus Sampling)
+          type: number
+          description: Controls diversity of output (0.0 to 1.0)
+          default: 0.95
+          minimum: 0.0
+          maximum: 1.0
+          ui:help: "Lower values make output more focused, higher values make it more diverse"
+
+        top_k:
+          title: Top K
+          type: integer
+          description: Number of highest probability tokens to consider
+          default: 3
+          minimum: 1
+          maximum: 100
+          ui:help: "Lower values make output more focused, higher values allow more variety"
+
+        enable_guardrail:
+          title: Enable Guardrail
+          type: boolean
+          default: true
+          ui:widget: checkbox
+
+      errorMessage:
+        properties:
+          staging_bucket_name: "Bucket name must be 3–63 characters, start with a lowercase letter, end with a lowercase letter or number, and can include lowercase letters, numbers, dots, dashes, or underscores."
+          root_agent_display_name: "Root agent display name must be 3–63 characters, start with a lowercase letter, can contain lowercase letters, numbers, and underscores, and end with a letter or number."
+
+      dependencies:
+        enable_guardrail:
+          allOf:
+            - if:
+                properties:
+                  enable_guardrail:
+                    const: true
+              then:
+                properties:
+                  guardrail_name:
+                    title: Guardrail Name
+                    type: object
+                    ui:field: custom_dropdown
+                    description: Select the Guardrail to use
+                    apiPath: /api/ai-components/guardrails-details/?provider_id=3&is_ready=true
+                    attrKey: guardrailname
+                    valueFields: [guardrailname,guardrailbaseid]
+                    requiredData:
+                      - key: region.value
+                        queryStringKey: region_name
+                        title: Region
+                    versionDetails:
+                      nestedKey: versions
+                      attrKey: versionid
+                      valueFields: [ guardrailurl, versionid ]
+                      title: Version ID
+                required:
+                  - guardrail_name
+  
+    - title: Agents Configuration
+      required:
+        - enable_agents
+      properties:
+        enable_agents:
+          title: Enable Agents
+          type: boolean
+          default: true
+          ui:disabled: true
+          ui:widget: checkbox
+          ui:options:
+            additionalProperties: false
+          # description: Enable to add agents to the system
+
+      dependencies:
+        enable_agents:
+          allOf:
+            - if:
+                properties:
+                  enable_agents:
+                    const: true
+              then:
+                properties:
+                  agents:
+                    title: Agents
+                    type: array
+                    minItems: 2
+                    maxItems: 10
+                    ui:options:
+                      orderable: true
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          title: Agent Name
+                          type: string
+                          description: Unique name for the agent
+                          pattern: "^(?=.{3,63}$)[a-z]([a-z0-9_]*[a-z0-9])?$"
+                          ui:help: "Must be 3–63 characters, start with a lowercase letter, can contain lowercase letters, numbers, and underscores, and end with a letter or number."
+
+                        show_advanced_options:
+                          title: Show/Hide Agent Details
+                          type: boolean
+                          default: false
+                          description: Toggle to show agent configuration details
+
+                      errorMessage:
+                        properties:
+                          name: "Agent name must be 3–63 characters, start with a lowercase letter, can contain lowercase letters, numbers, and underscores, and end with a letter or number."
+
+                      required:
+                        - name
+
+                      dependencies:
+                        show_advanced_options:
+                          allOf:
+                            - if:
+                                properties:
+                                  show_advanced_options:
+                                    const: true
+                              then:
+                                properties:
+                                  description:
+                                    title: Agent Description
+                                    type: string
+                                    description: Description of what this agent does
+
+                                  enable_workflow:
+                                    title: Enable Workflow
+                                    type: boolean
+                                    ui:help: "Enable Workflow functionality"
+                                    default: true
+                                    ui:widget: hidden
+
+                                  agent_class:
+                                    title: Agent Class
+                                    type: string
+                                    enum:
+                                      - LLMAgent
+                                      - LoopAgent
+                                      - SequentialAgent
+                                      - ParallelAgent
+                                    default: LLMAgent
+                                    ui:widget: radio
+                                    ui:options:
+                                      inline: true
+                                  
+                                  # enable_sub_agents:
+                                  #   title: Add Sub Agents
+                                  #   type: boolean
+                                  #   default: false
+                                  #   description: Enable to add sub-agents to this agent
+
+                          required:
+                            - description
+                          
+                          errorMessage:
+                            required:
+                              description: "Agent Description is required Field. Expand the Agent Details to provide a description."
+                                  
+                        agent_class:
+                          allOf:
+                            - if:
+                                properties:
+                                  agent_class:
+                                    const: LoopAgent
+                              then:
+                                properties:
+                                  agent_max_iterations:
+                                    title: Max Iterations
+                                    type: integer
+                                    description: Maximum iterations for LoopAgent
+                                    minimum: 1
+                                    maximum: 10
+                                    default: 2
+                                  enable_sub_agents:
+                                    title: Add Sub Agents
+                                    type: boolean
+                                    default: true
+                                    const: true
+                                    description: Enable to add sub-agents to this agent
+                            - if:
+                                properties:
+                                  agent_class:
+                                    const: LLMAgent
+                              then:
+                                properties:
+                                  instruction:
+                                    title: Agent Instruction
+                                    type: string
+                                    description: Detailed instruction for this agent
+                                    ui:widget: textarea
+
+                                  model_id:
+                                    title: Agent Model
+                                    type: object
+                                    ui:field: custom_dropdown
+                                    description: Select the Model for Agent
+                                    apiPath: /api/ai-components/models/?provider_id=3&model_type=LLM%20Model
+                                    attrKey: modelname
+                                    requiredData:
+                                      - key: region.value
+                                        queryStringKey: region_name
+                                        title: Region
+
+                                  output_key:
+                                    title: Output Key
+                                    type: string
+                                    description: Key for agent output
+                                    
+                                  tools:
+                                    title: "🔧 Tools"
+                                    type: object
+                                    properties:
+                                      enabled_tools:
+                                        type: array
+                                        title: "Enable Tools"
+                                        items:
+                                          type: string
+                                          enum:
+                                            - RAG
+                                            - MCP
+                                        uniqueItems: true
+                                        ui:widget: checkboxes
+                                        ui:options:
+                                          inline: true
+                                    allOf:
+                                      - if:
+                                          properties:
+                                            enabled_tools:
+                                              contains:
+                                                const: RAG
+                                        then:
+                                          properties:
+                                            rag:
+                                              title: RAG Configuration
+                                              type: object
+                                              properties:
+                                                rag_details:
+                                                  title: RAG Name
+                                                  type: object
+                                                  ui:field: custom_dropdown
+                                                  description: Select the RAG Dataset
+                                                  apiPath: /api/ai-components/vectorized-dataset/?provider_id=3&is_ready=true
+                                                  attrKey: datasetname
+                                                  valueFields: [datasetname,vectorizeddatasetbaseid,vectorizeddataseturl,description]
+                                                  labelField: description
+                                                  requiredData:
+                                                    - key: region.value
+                                                      queryStringKey: region_name
+                                                      title: Region
+
+                                                vector_distance_threshold:
+                                                  title: Vector Distance Threshold
+                                                  type: number
+                                                  minimum: 0.0
+                                                  maximum: 1.0
+                                                  default: 0.8
+                                                  description: Vector distance threshold
+                                                similarity_top_k:
+                                                  title: Similarity Top K
+                                                  type: integer
+                                                  minimum: 1
+                                                  default: 10
+                                                  description: Number of top similar results
+                                              required:
+                                                - rag_details
+                                          required:
+                                            - rag
+                                      - if:
+                                          properties:
+                                            enabled_tools:
+                                              contains:
+                                                const: MCP
+                                        then:
+                                          properties:
+                                            mcp:
+                                              title: MCP Configuration
+                                              type: object
+                                              properties:
+                                                mcp_servers:
+                                                  title: MCP Name
+                                                  type: array
+                                                  description: "Select exactly one MCP service"
+                                                  minItems: 0
+                                                  maxItems: 1
+                                                  items:
+                                                    type: string
+                                                    enum:
+                                                      - gcp-jira-mcp
+                                                      - gcp-bigquery-mcp
+                                                      - gcp-vertex-ai-mcp
+                                                      - gcp-natural-language-mcp
+                                                      - gcp-translation-api-mcp
+                                                      - gcp-aiplatform-mcp
+                                                      - gcp-cloud-logging-mcp
+                                                      - gcp-error-reporting-mcp
+                                                      - gcp-secret-manager-mcp
+                                                      - gcp-security-center-mcp
+                                                      - gcp-cloud-cdn-mcp
+                                                      - gcp-load-balancer-mcp
+                                                  ui:servers:
+                                                    "ui:widget": "select"
+                                                    "ui:options":
+                                                      multiple: false
+                                  enable_sub_agents:
+                                    title: Add Sub Agents
+                                    type: boolean
+                                    default: false
+                                    description: Enable to add sub-agents to this agent
+                              required:
+                                - model_id
+                                - instruction
+                              errorMessage:
+                                required:
+                                  model_id: "Model is required Field. Expand the Agent Details to provide a Model Name."
+                                  instruction: "Agent Instruction is required Field. Expand the Agent Details to provide an instruction."
+                            - if:
+                                properties:
+                                  agent_class:
+                                    enum: [SequentialAgent, ParallelAgent]
+                              then:
+                                properties:
+                                  enable_sub_agents:
+                                    title: Add Sub Agents
+                                    type: boolean
+                                    default: true
+                                    const: true
+                                    description: Enable to add sub-agents to this agent
+                                  
+                        enable_sub_agents:
+                          allOf:
+                            - if:
+                                properties:
+                                  enable_sub_agents:
+                                    const: true
+                              then:
+                                properties:
+                                  sub_agents:
+                                    title: Sub-Agents
+                                    type: array
+                                    minItems: 1
+                                    maxItems: 5
+                                    ui:options:
+                                      orderable: true
+                                    items:
+                                      type: object
+                                      properties:
+                                        name:
+                                          title: Sub-Agent Name
+                                          type: string
+                                          pattern: "^(?=.{3,63}$)[a-z]([a-z0-9_]*[a-z0-9])?$"
+                                          ui:help: "Must be 3–63 characters, start with a lowercase letter, can contain lowercase letters, numbers, and underscores, and end with a letter or number."
+
+                                        show_sub_agent_advanced:
+                                          title: Show/Hide Sub-agent Details
+                                          type: boolean
+                                          default: false
+                                          description: Toggle to show advanced sub-agent configuration
+
+                                      errorMessage:
+                                        properties:
+                                          name: "Sub-agent name must be 3–63 characters, start with a lowercase letter, can contain lowercase letters, numbers, and underscores, and end with a letter or number."
+
+                                      required:
+                                        - name
+
+                                      dependencies:
+                                        show_sub_agent_advanced:
+                                          allOf:
+                                            - if:
+                                                properties:
+                                                  show_sub_agent_advanced:
+                                                    const: true
+                                              then:
+                                                properties:
+                                                  description:
+                                                    title: Sub-Agent Description
+                                                    type: string
+
+                                                  instruction:
+                                                    title: Sub-Agent Instruction
+                                                    type: string
+                                                    ui:widget: textarea
+
+                                                  agent_class:
+                                                    title: Sub-Agent Class
+                                                    type: string
+                                                    enum:
+                                                      - LLMAgent
+                                                      # - LoopAgent
+                                                      # - SequentialAgent
+                                                      # - ParallelAgent
+                                                    default: LLMAgent
+                                                    ui:widget: radio
+                                                    ui:options:
+                                                      inline: true
+
+                                                  model_id:
+                                                    title: Sub-Agent Model
+                                                    type: object
+                                                    ui:field: custom_dropdown
+                                                    description: Select the Model for Root Agent
+                                                    apiPath: /api/ai-components/models/?provider_id=3&model_type=LLM%20Model
+                                                    attrKey: modelname
+                                                    requiredData:
+                                                      - key: region.value
+                                                        queryStringKey: region_name
+                                                        title: Region
+
+                                                  output_key:
+                                                    title: Output Key
+                                                    type: string
+                                                    description: Key for sub-agent output
+                                           
+                                                  # Replaced previous disabled tools_section + separate booleans with inline multi-select tools configuration
+                                                  tools:
+                                                    title: "🔧 Tools"
+                                                    type: object
+                                                    properties:
+                                                      enabled_tools:
+                                                        type: array
+                                                        title: "Enable Tools"
+                                                        items:
+                                                          type: string
+                                                          enum:
+                                                            - RAG
+                                                            - MCP
+                                                        uniqueItems: true
+                                                        ui:widget: checkboxes
+                                                        ui:options:
+                                                          inline: true
+                                                    allOf:
+                                                      - if:
+                                                          properties:
+                                                            enabled_tools:
+                                                              contains:
+                                                                const: RAG
+                                                        then:
+                                                          properties:
+                                                            rag:
+                                                              title: RAG Configuration
+                                                              type: object
+                                                              properties:
+                                                                rag_details:
+                                                                  title: RAG Name
+                                                                  type: object
+                                                                  ui:field: custom_dropdown
+                                                                  description: Select the RAG Dataset
+                                                                  apiPath: /api/ai-components/vectorized-dataset/?provider_id=3&is_ready=true
+                                                                  attrKey: datasetname
+                                                                  valueFields: [datasetname,vectorizeddatasetbaseid,vectorizeddataseturl,description]
+                                                                  requiredData:
+                                                                    - key: region.value
+                                                                      queryStringKey: region_name
+                                                                      title: Region
+
+                                                                vector_distance_threshold:
+                                                                  title: Vector Distance Threshold
+                                                                  type: number
+                                                                  minimum: 0.0
+                                                                  maximum: 1.0
+                                                                  default: 0.8
+                                                                  description: Vector distance threshold
+                                                                similarity_top_k:
+                                                                  title: Similarity Top K
+                                                                  type: integer
+                                                                  minimum: 1
+                                                                  default: 10
+                                                                  description: Number of top similar results
+                                                              required:
+                                                                - rag_details
+                                                          required:
+                                                            - rag
+                                                      - if:
+                                                          properties:
+                                                            enabled_tools:
+                                                              contains:
+                                                                const: MCP
+                                                        then:
+                                                          properties:
+                                                            mcp:
+                                                              title: MCP Configuration
+                                                              type: object
+                                                              properties:
+                                                                mcp_servers:
+                                                                  title: Server Name
+                                                                  type: array
+                                                                  description: "Select exactly one MCP service"
+                                                                  minItems: 0
+                                                                  maxItems: 1
+                                                                  items:
+                                                                    type: string
+                                                                    enum:
+                                                                      - gcp-jira-mcp
+                                                                      - gcp-bigquery-mcp
+                                                                      - gcp-vertex-ai-mcp
+                                                                      - gcp-natural-language-mcp
+                                                                      - gcp-translation-api-mcp
+                                                                      - gcp-aiplatform-mcp
+                                                                      - gcp-cloud-logging-mcp
+                                                                      - gcp-error-reporting-mcp
+                                                                      - gcp-secret-manager-mcp
+                                                                      - gcp-security-center-mcp
+                                                                      - gcp-cloud-cdn-mcp
+                                                                      - gcp-load-balancer-mcp
+                                          required:
+                                            - description
+                                            - instruction
+                                            - model_id
+                                          errorMessage:
+                                            required:
+                                              model_id: "Model is required Field. Expand the Sub-Agent Details to provide a Model Name."
+                                              instruction: "Sub-Agent Instruction is required Field. Expand the Sub-Agent Details to provide an instruction."
+                                              description: "Sub-Agent Description is required Field. Expand the Sub-Agent Details to provide a description."
+
+    - title: Monitoring and Evaluation
+      properties:
+        enable_groundtruth:
+          title: Enable Ground Truth
+          type: boolean
+          default: false
+          ui:widget: checkbox
+        enable_general_groundtruth:
+          title: Enable General Ground Truth
+          type: boolean
+          default: false
+          ui:widget: checkbox
+        enable_arize_evaluation:
+          title: Enable Arize Evaluation
+          type: boolean
+          default: true
+          ui:widget: hidden
+
+      dependencies:
+        enable_groundtruth:
+          allOf:
+            - if:
+                properties:
+                  enable_groundtruth:
+                    const: true
+              then:
+                properties:
+                  groundtruth:
+                    title: Ground Truth Dataset RAG
+                    type: object
+                    ui:field: custom_dropdown
+                    apiPath: /api/ai-components/ground-truth/
+                    attrKey: groundtruth_name
+                    valueFields: [groundtruth_name]
+                    versionDetails:
+                        nestedKey: versions
+                        attrKey: versionid
+                        valueFields: [ modelname, versionid ]
+                        title: Version ID
+        enable_general_groundtruth:
+          allOf:  
+            - if:
+                properties: 
+                  enable_general_groundtruth:
+                    const: true
+              then:
+                properties:
+                  general_groundtruth:
+                    title: General Ground Truth 
+                    type: object
+                    ui:field: custom_dropdown
+                    apiPath: /api/ai-components/general-ground-truth/
+                    attrKey: general_groundtruth_name
+                    valueFields: [ general_groundtruth_name, modelname ]
+
+        enable_arize_evaluation:
+          allOf:
+            - if:
+                properties:
+                  enable_arize_evaluation:
+                    const: true
+              then:
+                properties:
+                  arize_model_name:
+                    title: Arize Evaluation Model Name
+                    type: object
+                    ui:field: custom_dropdown
+                    description: Select the Model
+                    apiPath: /api/ai-components/models/?provider_id=3&model_type=LLM%20Model
+                    attrKey: modelname
+                    requiredData:
+                      - key: region.value
+                        queryStringKey: region_name
+                        title: Region
+                  
+                  # arize_api_key_name:
+                  #   title: Arize API Key Secret Name
+                  #   type: string
+                  #   description: Name of the secret in GCP Secret Manager that contains the Arize API Key 
+                
+                  # arize_vertexai_integration_id:
+                  #   title: Arize Vertexai Integration ID Secret in Key Vault
+                  #   type: string
+                  #   description: Provide Arize Vertexai Integration ID
+                  #   ui:help: "The integration ID for linking Vertexai with Arize evaluations"
+
+      required:
+        # - arize_api_key_name
+        # - arize_vertexai_integration_id  
+        - arize_model_name     
+
+    - title: Repository Details
+      required:
+        - repo_url
+        - collaborators
+      properties:
+        repo_url:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+            - github.com
+          # Enforce repo name length <= 56 (RepoUrlPicker value format: "github.com?owner=<org>&repo=<name>")
+          pattern: "^github\\.com\\?owner=[^&]+&repo=[A-Za-z][A-Za-z0-9_-]{0,54}[A-Za-z0-9]$"
+          errorMessage:
+            pattern: "Repository name should start with a letter and end with an alphanumeric and can be at most 56 characters."
+            
+        default_branch:
+          title: Default Branch
+          type: string
+          description: Provide the default branch name
+          default: "main"
+        protectDefaultBranch:
+          title: Protect Default Branch
+          type: boolean
+          description: Whether to protect the default branch
+          default: false
+        collaborators:
+          title: GitHub Team Collaborators
+          type: array
+          description: Name of the GitHub team to add as collaborators and the corresponding access level
+          items:
+            type: object
+            properties:
+              team:
+                type: string
+                title: Team Name
+                description: Name of the Team in Github
+              access:
+                type: string
+                title: Access Level
+                description: Access level for the Team
+                default: push
+                enum:
+                  - pull
+                  - push
+                  - admin
+                  - maintain
+                  - triage
+          required:
+            - team
+            - access
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          # Values for catalog-info.yaml
+          root_agent_display_name: ${{ parameters.root_agent_display_name }}
+          root_agent_description: ${{ parameters.root_agent_description }}
+          lifecycle: ${{ parameters.lifecycle }}
+          owner: ${{ parameters.owner }}
+          repo_url: ${{ parameters.repo_url }}
+          data_openapi_baseurl: ${{ scaffolder_globals.data_openapi_baseurl }}
+          project_id: ${{ scaffolder_globals.gcp_project_id }}
+          agents: ${{ parameters.agents }}
+          enable_agents: ${{ parameters.enable_agents }}
+          
+          # Root Agent Configuration - for other skeleton files if needed
+          root_agent_class: ${{ parameters.root_agent_class }}
+          multiagent: ${{ parameters.multiagent }}
+          root_agent_model_id: ${{ parameters.root_agent_model_id.value }}
+          root_agent_instruction: ${{ parameters.root_agent_instruction }}
+          second_instruction: ${{ parameters.second_instruction }}
+          region: ${{ parameters.region.value }}
+          staging_bucket_name: ${{ parameters.staging_bucket_name }}
+          enable_guardrail: ${{ parameters.enable_guardrail }}
+          root_agent_guardrail_name: ${{ parameters.guardrail_name.value.guardrailname }}
+          root_agent_guardrailurl: ${{ parameters.guardrail_name.version.guardrailurl }}
+          root_agent_guardrail_base_id: ${{ parameters.guardrail_name.value.guardrailbaseid }}
+          temperature: ${{ parameters.temperature }}
+          top_p: ${{ parameters.top_p }}
+          top_k: ${{ parameters.top_k }}
+          enable_groundtruth: ${{ parameters.enable_groundtruth }}
+          enable_general_groundtruth: ${{ parameters.enable_general_groundtruth }}
+          groundtruth_name: ${{ parameters.groundtruth.value.groundtruth_name }}
+          groundtruth_model_name: ${{ parameters.groundtruth.version.modelname }}
+          general_groundtruth_name: ${{ parameters.general_groundtruth.value.general_groundtruth_name }}
+          general_groundtruth_model_name: ${{ parameters.general_groundtruth.value.modelname }}
+          template_name: "gcp-multiagent-workflow"
+          network_attachment: ${{ scaffolder_globals.gcp_network_attachment }}
+          dns_peering_domain: ${{ scaffolder_globals.gcp_dns_peering_domain }}
+          dns_peering_domain_target_project: ${{ scaffolder_globals.gcp_dns_peering_domain_target_project }}
+          dns_peering_domain_target_network: ${{ scaffolder_globals.gcp_dns_peering_domain_target_network }}
+          gcp_secret_manager_project: ${{ scaffolder_globals.gcp_project_number }}
+          arize_model_name: ${{ parameters.arize_model_name.value }}
+          arize_api_key_name: ${{ scaffolder_globals.arize_api_key_secret_name }}
+          arize_space_id_name: ${{ scaffolder_globals.arize_space_id_secret_name }}
+          arize_endpoint: ${{ scaffolder_globals.arize_endpoint }}
+          arize_vertexai_integration_id_name: ${{ scaffolder_globals.arize_vertexai_integration_id_secret_name }}
+
+    - id: fetch-common
+      name: Fetch Common Scripts
+      action: fetch:template
+      input:
+        url: ../common/agent/evaluation
+        targetPath: ./evaluation
+        values:
+          region: ${{ parameters.region.value }}
+          project_id: ${{ scaffolder_globals.gcp_project_id }}
+          gcp_secret_manager_project: ${{ scaffolder_globals.gcp_project_number }}
+          arize_model_name: ${{ parameters.arize_model_name.value }}
+          arize_api_key_name: ${{ scaffolder_globals.arize_api_key_secret_name }}
+          arize_space_id_name: ${{ scaffolder_globals.arize_space_id_secret_name }}
+          arize_endpoint: ${{ scaffolder_globals.arize_endpoint }}
+          arize_vertexai_integration_id_name: ${{ scaffolder_globals.arize_vertexai_integration_id_secret_name }}
+          general_groundtruth_model_name: ${{ parameters.general_groundtruth.value.modelname }}
+          groundtruth_model_name: ${{ parameters.groundtruth.version.modelname }}
+
+    - id: fetch-common-src
+      name: Fetch Common Src Scripts
+      action: fetch:template
+      input:
+        url: ../common/multiagent/src
+        targetPath: ./src
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        repoUrl: ${{ parameters.repo_url }}
+        defaultBranch: "${{ parameters.default_branch }}"
+        collaborators: ${{ parameters.collaborators }}
+        protectDefaultBranch: ${{ parameters.protectDefaultBranch }}
+
+    - id: apply-trigger
+      name: Create GCP CloudBuild Trigger
+      action: gcp:cloudbuild:create
+      input:
+        branchName: main
+        githubRepositoryName: ${{ (parameters.repo_url | parseRepoUrl).repo }}
+        githubRepositoryOwner: ${{ (parameters.repo_url | parseRepoUrl).owner }}
+        triggerName: ${{ (parameters.repo_url | parseRepoUrl).repo | replace('_', '-') }}-trigger
+
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yaml"
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

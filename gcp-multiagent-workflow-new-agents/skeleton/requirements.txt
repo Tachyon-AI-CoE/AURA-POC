@@ -1,0 +1,11 @@
+google_adk == 1.18.0
+google-cloud-aiplatform[agent_engines,adk] == 1.141.0
+google-cloud-storage>=2.10.0
+requests>=2.32.5
+python-dotenv>=1.1.1
+PyYAML>=6.0.3
+deepeval==3.7.4
+pandas==2.2.3
+ragas==0.3.8
+uv==0.9.8
+langchain-google-vertexai>=3.0.3
