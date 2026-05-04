@@ -1,0 +1,62 @@
+{
+  "rag_corpus": {
+    "corpus_name": "knowledgearticle_corpus_ragmanaged",
+    "description": "Corpus to store the enterprise level knowledge article related data ",
+    "data_source": {
+      "type": "GCS",
+      "staging_bucket": "source-bucket",
+      "jira_data_source_config": {
+        "jira_projects": [
+          "Retail"
+        ],
+        "custom_query": [],
+        "email": "ciqd.clap@gmail.com",
+        "server_uri": "ciqdclap.atlassian.net",
+        "api_secret_key": "projects/766248435264/secrets/JIRA_SECRET_KEY/versions/1",
+        "sync_through_rag_pipeline": false
+      },
+      "sharepoint_data_source_config": {
+        "client_id": "",
+        "tenant_id": "",
+        "site_name": "",
+        "folder_path": "",
+        "drive_name": "",
+        "api_secret_key": "",
+        "sync_through_rag_pipeline": false
+      }
+    },
+    "embedding_config": {
+      "embedding_model": "publishers/google/models/text-embedding-005",
+      "chunk_size": 512,
+      "chunk_overlap": 100,
+      "max_embedding_requests_per_min": 1000,
+      "parser_type": "LLM_PARSER",
+      "llm_parser": {
+        "model": "Gemeni 2.5 pro",
+        "custom_prompt": "you are an information retriever.Extract key data from the sample.txt file."
+      }
+    },
+    "vector_db": {
+      "type": "rag_managed_db",
+      "vector_search_config": {
+        "dimensions": 768,
+        "approximate_neighbours_count": 100,
+        "distance_measure_type": "DOT_PRODUCT_DISTANCE"
+      },
+      "rag_managed_db_config": {
+        "retrieval_strategy": ""
+      }
+    },
+    "summarization": {
+      "corpus_summarization": false,
+      "summarization_instructions": ""
+    },
+    "metadata": {
+      "metadata_extractor": true,
+      "metadata_fields": [
+        "",
+        ""
+      ]
+    }
+  }
+}

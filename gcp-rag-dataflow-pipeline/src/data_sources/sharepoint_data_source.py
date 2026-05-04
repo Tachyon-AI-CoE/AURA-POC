@@ -1,0 +1,1 @@
+## SharePoint data source implementation for RAG pipeline.

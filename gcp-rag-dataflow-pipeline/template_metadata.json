@@ -1,0 +1,73 @@
+{
+  "name": "RAG Pipeline",
+  "description": "A flexible RAG pipeline template for creating vector database corpuses from GCS configuration files. Supports multiple data sources and vector databases.",
+  "parameters": [
+    {
+      "name": "config_source",
+      "label": "Configuration Source",
+      "helpText": "Source of pipeline configuration: gcs, pubsub, or runtime",
+      "isOptional": true,
+      "regexes": ["^(gcs|pubsub|runtime)$"]
+    },
+    {
+      "name": "config_bucket",
+      "label": "Configuration Bucket",
+      "helpText": "GCS bucket containing the RAG configuration file (format: rag_{CORPUS_NAME}_config.json). Required when config_source=gcs.",
+      "isOptional": true
+    },
+    {
+      "name": "config_file_pattern",
+      "label": "Configuration File Pattern", 
+      "helpText": "Configuration file name matching pattern: rag_{CORPUS_NAME}_config.(json|txt|yaml|yml). The corpus name in filename must match the corpus_name in the config file. Required when config_source=gcs.",
+      "isOptional": true
+    },
+    {
+      "name": "pubsub_message",
+      "label": "Pub/Sub Message",
+      "helpText": "Base64-encoded Pub/Sub message containing configuration (for config_source=pubsub)",
+      "isOptional": true
+    },
+    {
+      "name": "result_bucket",
+      "label": "Result Bucket",
+      "helpText": "GCS bucket for storing RAG corpus creation results and import logs (REQUIRED)",
+      "isOptional": false
+    },
+    {
+      "name": "audit_bucket",
+      "label": "Audit Bucket",
+      "helpText": "GCS bucket for storing pipeline audit logs and execution history (REQUIRED)",
+      "isOptional": false
+    },
+    {
+      "name": "cloud_run_service",
+      "label": "Cloud Run Service",
+      "helpText": "Cloud Run service name for Eventarc trigger destination (default: rag-event-handler)",
+      "isOptional": true
+    },
+    {
+      "name": "event_arc_service_account",
+      "label": "Eventarc Service Account",
+      "helpText": "Service account email used by Eventarc triggers (default: neuroaieng-eventarc-sa@<PROJECT_ID>.iam.gserviceaccount.com)",
+      "isOptional": true
+    },
+    {
+      "name": "corpus_mapping_bucket",
+      "label": "Corpus Mapping Bucket",
+      "helpText": "GCS bucket for storing corpus-to-staging-bucket mapping files. Each file is named {staging_bucket}.json and contains corpus metadata (OPTIONAL)",
+      "isOptional": true
+    },
+    {
+      "name": "status_webhook_url",
+      "label": "Status Webhook URL",
+      "helpText": "Webhook URL for sending RAG corpus status updates (e.g., https://api.example.com/api). If not provided, falls back to DATA_APP_API_URL environment variable (OPTIONAL)",
+      "isOptional": true
+    },
+    {
+      "name": "cloudrun_service_url",
+      "label": "Cloud Run Service URL",
+      "helpText": "URL for the Cloud Run service. If not provided, falls back to CLOUD_RUN_SERVICE_URL environment variable (OPTIONAL)",
+      "isOptional": true
+    }
+  ]
+}

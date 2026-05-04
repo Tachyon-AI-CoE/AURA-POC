@@ -1,0 +1,94 @@
+steps:
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    env: ['DOCKER_BUILDKIT=1']
+    id: 'Build Docker image'
+    args:
+      [
+        'build',
+        '-t',
+        '${_IMAGE_URI}:v1',
+        '.'
+      ]
+    dir: 'gcp/gcp-rag-dataflow-pipeline/'
+  # Push Docker image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Docker image'
+    args:
+      [
+        'push',
+        '${_IMAGE_URI}:v1'
+      ]
+    dir: 'gcp/gcp-rag-dataflow-pipeline/'
+  # Validate and display template metadata
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    id: 'Update template metadata'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        
+        # Copy template_metadata.json as temp_metadata.json (no image URI needed in metadata)
+        cp template_metadata.json temp_metadata.json
+        
+        echo "✅ Updated template metadata:"
+        echo "Template name: $(cat temp_metadata.json | jq -r '.name')"
+        echo "Description: $(cat temp_metadata.json | jq -r '.description')"
+        echo "Parameters count: $(cat temp_metadata.json | jq '.parameters | length')"
+    dir: 'gcp/gcp-rag-dataflow-pipeline/'
+  # Create Flex Template
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Create Flex Template'
+    args:
+      [
+        'dataflow',
+        'flex-template',
+        'build',
+        '${_TEMPLATE_LOCATION}',
+        '--image=${_IMAGE_URI}:v1',
+        '--sdk-language=PYTHON',
+        '--metadata-file=temp_metadata.json',
+        '--project=$PROJECT_ID'
+      ]
+    dir: 'gcp/gcp-rag-dataflow-pipeline/'
+  # Validate template creation
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    id: 'Validate template'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        
+        echo "✅ Flex Template created successfully!"
+        echo "📍 Template Location: ${_TEMPLATE_LOCATION}"
+        echo "🐳 Docker Image: ${_IMAGE_URI}:v1"
+        echo ""
+        echo "🎯 To run the template (basic):"
+        echo "gcloud dataflow flex-template run \"rag-pipeline-\$(date +%Y%m%d-%H%M%S)\" \\"
+        echo "  --template-file-gcs-location=\"${_TEMPLATE_LOCATION}\" \\"
+        echo "  --project=\"$PROJECT_ID\" \\"
+        echo "  --region=\"${_REGION}\" \\"
+        echo "  --parameters=\"config_source=gcs,config_bucket=your-config-bucket,config_file_pattern=eventfile_*.json\""
+        echo ""
+        echo "🔒 To run with custom subnet (optional):"
+        echo "gcloud dataflow flex-template run \"rag-pipeline-\$(date +%Y%m%d-%H%M%S)\" \\"
+        echo "  --template-file-gcs-location=\"${_TEMPLATE_LOCATION}\" \\"
+        echo "  --project=\"$PROJECT_ID\" \\"
+        echo "  --region=\"${_REGION}\" \\"
+        echo "  --subnetwork=\"regions/${_REGION}/subnetworks/YOUR_SUBNET_NAME\" \\"
+        echo "  --parameters=\"config_source=gcs,config_bucket=your-config-bucket,config_file_pattern=eventfile_*.json\""
+
+serviceAccount: 'projects/$PROJECT_ID/serviceAccounts/neuroaieng-cloudbuild-sa@$PROJECT_ID.iam.gserviceaccount.com'
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - '${_IMAGE_URI}:v1'
+
+substitutions:
+  _IMAGE_URI: 'us-east4-docker.pkg.dev/$PROJECT_ID/neuroaiengineering-repo/dev/rag-pipeline-template'
+  _IMAGE_VERSION: 'v1'
+  _TEMPLATE_LOCATION: 'gs://pdlc-dev-templates/rag-pipeline-template.json'
+  _REGION: 'us-east4'
