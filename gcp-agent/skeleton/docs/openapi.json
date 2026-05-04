@@ -1,0 +1,709 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GCP Agent API",
+    "description": "GCP Cloud run with FastAPI for GCP Agent conversations",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "${{ values.data_openapi_baseurl }}"
+    }
+  ],
+    "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Root",
+        "description": "Root endpoint with API information",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invoke-agent": {
+      "post": {
+        "summary": "Invoke Agent Endpoint",
+        "description": "Invoke the multi-agent system with user input",
+        "operationId": "invoke_agent_endpoint_invoke_agent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stream-query": {
+      "post": {
+        "summary": "Stream Query Endpoint",
+        "description": "Invoke the multi-agent system with user input",
+        "operationId": "stream_query_endpoint_stream_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/create-session": {
+      "post": {
+        "summary": "Create Session Endpoint",
+        "description": "Invoke the create-session with user id",
+        "operationId": "create_session_endpoint_create_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/list-sessions": {
+      "get": {
+        "summary": "List Sessions Endpoint",
+        "description": "Invoke the list_sessions with user id",
+        "operationId": "list_sessions_endpoint_list_sessions_get",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListSessionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSessionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/get-session": {
+      "get": {
+        "summary": "Get Session Endpoint",
+        "description": "Invoke the get_session with user id",
+        "operationId": "get_session_endpoint_get_session_get",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/delete-session": {
+      "post": {
+        "summary": "Delete Session Endpoint",
+        "description": "Invoke the delete_session with user id",
+        "operationId": "delete_session_endpoint_delete_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/add-session-to-memory": {
+      "post": {
+        "summary": "Add Session To Memory Endpoint",
+        "description": "Invoke the add-session-to-memory with session",
+        "operationId": "add_session_to_memory_endpoint_add_session_to_memory_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSessionToMemoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddSessionToMemoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search-memory": {
+      "post": {
+        "summary": "Search Memory Endpoint",
+        "description": "Invoke the search_memory with user id and query",
+        "operationId": "search_memory_endpoint_search_memory_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchMemoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchMemoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddSessionToMemoryRequest": {
+        "properties": {
+          "session": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Session"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session",
+          "agentId"
+        ],
+        "title": "AddSessionToMemoryRequest"
+      },
+      "AddSessionToMemoryResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "AddSessionToMemoryResponse"
+      },
+      "CreateSessionRequest": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "agentId"
+        ],
+        "title": "CreateSessionRequest"
+      },
+      "CreateSessionResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "CreateSessionResponse"
+      },
+      "DeleteSessionRequest": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "sessionId": {
+            "type": "string",
+            "title": "Sessionid"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "sessionId",
+          "agentId"
+        ],
+        "title": "DeleteSessionRequest"
+      },
+      "DeleteSessionResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "DeleteSessionResponse"
+      },
+      "GetSessionRequest": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "sessionId": {
+            "type": "string",
+            "title": "Sessionid"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "sessionId",
+          "agentId"
+        ],
+        "title": "GetSessionRequest"
+      },
+      "GetSessionResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "GetSessionResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ListSessionsRequest": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "agentId"
+        ],
+        "title": "ListSessionsRequest"
+      },
+      "ListSessionsResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "ListSessionsResponse"
+      },
+      "SearchMemoryRequest": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "query",
+          "agentId"
+        ],
+        "title": "SearchMemoryRequest"
+      },
+      "SearchMemoryResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "SearchMemoryResponse"
+      },
+      "StreamQueryRequest": {
+        "properties": {
+          "userInput": {
+            "type": "string",
+            "title": "Userinput"
+          },
+          "agentId": {
+            "type": "string",
+            "title": "Agentid"
+          },
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "agentDisplayName": {
+            "type": "string",
+            "title": "AgentDisplayName"
+          },
+          "agentVersion": {
+            "type": "string",
+            "title": "AgentVersion"
+          },
+          "sessionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sessionid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userInput",
+          "agentId",
+          "userId",
+          "agentDisplayName",
+          "agentVersion"
+        ],
+        "title": "StreamQueryRequest"
+      },
+      "StreamQueryResponse": {
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response",
+          "status"
+        ],
+        "title": "StreamQueryResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

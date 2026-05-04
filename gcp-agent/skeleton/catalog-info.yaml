@@ -1,0 +1,33 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.agent_name }} 
+  description: Created with ${{ values.template_name }} Template. ${{ values.agent_description }}
+  tags:
+    - gcp
+    - agent
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  isSupervisor: ${{ values.supervisor }}
+  
+spec:
+  type: agent
+  owner: ${{ values.owner }}
+  lifecycle: ${{ values.lifecycle }}
+  dependsOn : [${{ values.dependson }}]
+  providesApis: [api:${{ values.agent_name }}-api]
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.agent_name }}-api
+  description: AI agent that generates responses using GCP Vertexai.
+  tags:
+    - gcp
+    - agent
+spec:
+  type: openapi
+  owner: ${{ values.owner }}
+  lifecycle: ${{ values.lifecycle }}
+  definition:
+    $text: ./docs/openapi.json
