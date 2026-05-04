@@ -1,0 +1,95 @@
+steps:
+
+  # Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    env: ['DOCKER_BUILDKIT=1']
+    id: 'Build Docker image'
+    args:
+      [
+        'build',
+        '-t',
+        '${_IMAGE_URI}:${_IMAGE_VERSION}',
+        '-f',
+        'Dockerfile',
+        '.'
+      ]
+    dir: 'gcp/gcp-agent-api/skeleton/'
+
+  # Push Docker image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Docker image'
+    args:
+      [
+        'push',
+        '${_IMAGE_URI}:${_IMAGE_VERSION}'
+      ]
+    dir: 'gcp/gcp-agent-api/skeleton/'
+
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy to Cloud Run'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - '${_IMAGE_URI}:${_IMAGE_VERSION}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--port'
+      - '${_PORT}'
+      - '--ingress'
+      - '${_INGRESS}'
+      - '--service-account'
+      - '${_CLOUDRUN_SERVICE_ACCOUNT}'
+      - '--min-instances'
+      - '${_MIN_INSTANCES}'
+      - '--max-instances'
+      - '${_MAX_INSTANCES}'
+      - '--cpu'
+      - '${_CPU}'
+      - '--memory'
+      - '${_MEMORY}'
+      - '--network=${_NETWORK}'
+      - '--subnet=${_SUBNET}'
+      - '--vpc-egress'
+      - '${_VPC_EGRESS}'
+      - '--set-env-vars'
+      - 'ARIZE_SPACE_ID=${_ARIZE_SPACE_ID_NAME},ARIZE_API_KEY=${_ARIZE_API_KEY_NAME},PROJECT_ID=${PROJECT_ID},LOCATION=${LOCATION},PROJECT_NUMBER=${PROJECT_NUMBER}'
+      - '--allow-unauthenticated'
+
+serviceAccount: '${_BUILD_SERVICE_ACCOUNT}'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  pool:
+    name: ${_WORKER_POOL_NAME}
+
+images:
+  - '${_IMAGE_URI}:${_IMAGE_VERSION}'
+
+
+substitutions:
+  _IMAGE_URI: ''
+  _IMAGE_VERSION: ''
+  _SERVICE_NAME: ''
+  _CLOUDRUN_SERVICE_ACCOUNT: ''
+  _PORT: ''
+  _MIN_INSTANCES: ''
+  _MAX_INSTANCES: ''
+  _CPU: ''
+  _MEMORY: ''
+  _BUILD_SERVICE_ACCOUNT: ''
+  _REGION: ''
+  # _INGRESS: 'internal' # internal doesnt work with APIGateay https://issuetracker.google.com/issues/237250997
+  _INGRESS: ''
+  _VPC_EGRESS: ''
+  _NETWORK: ''
+  _SUBNET: '' # Specify your subnet name if needed
+  _WORKER_POOL_NAME: ''
+  _ARIZE_API_KEY_NAME: ''
+  _ARIZE_SPACE_ID_NAME: ''
