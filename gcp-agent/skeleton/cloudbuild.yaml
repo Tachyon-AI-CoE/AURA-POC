@@ -23,7 +23,7 @@ steps:
         set -euo pipefail
 
         pip install uv
-        uv run agent_config_generator.py
+        uv run --no-project --with pyyaml agent_config_generator.py
 
   # Deploy the agent to Vertex AI Agent Engine
   - name: 'python:3.12'
@@ -47,9 +47,6 @@ substitutions:
   _AGENT_FOLDER: ''                       # set per-trigger to the agent's subfolder name (e.g. weather-travel-assistant)
   _AGENT_EXEC_SERVICE_ACCOUNT_NAME: ''
   _STAGING_BUCKET_NAME: ''
-  _WORKER_POOL_NAME: ''
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  pool:
-    name: ${_WORKER_POOL_NAME}
