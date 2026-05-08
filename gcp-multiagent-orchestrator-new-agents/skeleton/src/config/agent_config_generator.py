@@ -1,354 +1,408 @@
-"""Agent Configuration Generator - Merges agents.json with root-agent-config.yaml."""
+"""
+Agent Configuration Generator
+-------------------------------
+Reads a single unified agents-config.json and generates:
 
+  config/
+    agent-config.yaml       ← merged single YAML (for deployment via agent_engine_deploy.py)
+                               stashed before GitHub push, restored to src/config/ for deploy
+    root-agent.yaml         ← ADK format root agent (pushed to GitHub)
+    sub_agents/
+      <agent_name>.yaml     ← one per agent, ALL nesting levels flat (pushed to GitHub)
+
+Standard field names (new — no legacy aliases):
+  JSON field                  → YAML field
+  ──────────────────────────────────────────
+  agent_type                  → agent_class
+  model                       → model
+  generate_content_config     → generate_content_config
+  name (spaces allowed)       → sanitised to snake_case in filenames
+
+custom_agents[] is merged with agents[] — treated identically.
+
+CLI usage (called by local_deploy.py):
+  uv run agent_config_generator.py --json-path <path> --output-dir <dir>
+"""
+
+import argparse
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional
+
 import yaml
 
-from utils.log_helper import setup_logging
-logger = setup_logging()
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s %(asctime)s - %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
-def load_agents_from_json(json_file_path: str) -> List[Dict[str, Any]]:
-    try:
-        with open(json_file_path, "r", encoding="utf-8") as f:
-            agents = json.load(f)
-        logger.info(
-            f"✅ Successfully loaded {len(agents)} agents from {json_file_path}"
+
+# ── Field name mapping: JSON standard → ADK YAML ─────────────────────────────
+# agent_type  → agent_class  (ADK uses agent_class)
+# model       → model        (same)
+# generate_content_config → generate_content_config (same)
+_AGENT_CLASS_MAP = {
+    "LLMAgent":        "LlmAgent",
+    "LlmAgent":        "LlmAgent",
+    "llmagent":        "LlmAgent",
+    "LoopAgent":       "LoopAgent",
+    "loopagent":       "LoopAgent",
+    "ParallelAgent":   "ParallelAgent",
+    "parallelagent":   "ParallelAgent",
+    "SequentialAgent": "SequentialAgent",
+    "sequentialagent": "SequentialAgent",
+}
+
+
+def _resolve_agent_class(agent_type: str) -> str:
+    resolved = _AGENT_CLASS_MAP.get(agent_type) or _AGENT_CLASS_MAP.get(
+        agent_type.lower(), agent_type
+    )
+    return resolved
+
+
+def _sanitise_name(name: str) -> str:
+    """Convert agent name to safe snake_case for use as a filename."""
+    return name.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+# ── YAML custom dumper ────────────────────────────────────────────────────────
+
+class _Dumper(yaml.SafeDumper):
+    """Preserves insertion order, no anchors, block scalar for multiline strings."""
+
+    def ignore_aliases(self, data):
+        return True
+
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
+    def represent_str(self, data):
+        if "\n" in data:
+            return self.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        return self.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+_Dumper.add_representer(
+    dict,
+    lambda d, data: d.represent_mapping("tag:yaml.org,2002:map", data.items()),
+)
+_Dumper.add_representer(str, _Dumper.represent_str)
+
+
+def _write_yaml(data: Dict[str, Any], path: str) -> None:
+    os.makedirs(os.path.dirname(path) if os.path.dirname(path) else ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(
+            data, f,
+            Dumper=_Dumper,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+            indent=2,
+            width=float("inf"),
         )
-        return agents
-    except FileNotFoundError:
-        logger.error(f"❌ File not found: {json_file_path}")
-        raise
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ Error decoding JSON from {json_file_path}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"❌ Unexpected error loading agents from JSON: {e}")
-        raise
+    logger.info(f"  ✅ Written: {path}")
 
 
-def load_root_agent_config(yaml_file_path: str) -> Dict[str, Any]:
-    try:
-        with open(yaml_file_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-        logger.info(f"✅ Successfully loaded root agent config from {yaml_file_path}")
-        return config
-    except FileNotFoundError:
-        logger.error(f"❌ File not found: {yaml_file_path}")
-        raise
-    except yaml.YAMLError as e:
-        logger.error(f"❌ Error parsing YAML from {yaml_file_path}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"❌ Unexpected error loading root agent config: {e}")
-        raise
+# ── RAG + MCP transform (preserved from original) ────────────────────────────
 
-
-def transform_rag_config(tools: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _transform_rag(tools: Dict[str, Any]) -> List[Dict[str, Any]]:
     if "rag" not in tools:
         return []
-
     rag_config = tools.get("rag", [])
-
-    # Ensure rag_config is a list, if not make it a list
     if not isinstance(rag_config, list):
         rag_config = [rag_config]
-
-    transformed_rag = []
-    for rag_item in rag_config:
-        rag_entry = {}
-
-        # Extract RAG configuration
-        # Expected format: {"rag_details": {"value": {"datasetname": "...", "vectorizeddatasetbaseid": "...", "description": "..."}}, ...}
-
-        rag_name_value = ""
-        vectorized_dataset_base_id = ""
-        description = ""
-
-        # Extract from rag_details object
-        if "rag_details" in rag_item and isinstance(rag_item["rag_details"], dict):
-            rag_details = rag_item["rag_details"]
-            if "value" in rag_details and isinstance(rag_details["value"], dict):
-                value_obj = rag_details["value"]
-                rag_name_value = value_obj.get("datasetname", "")
-                vectorized_dataset_base_id = value_obj.get(
-                    "vectorizeddatasetbaseid", ""
-                )
-                description = value_obj.get("description", "")
-        else:
-            logger.warning(
-                f"⚠️ RAG item missing 'rag_details' object or invalid format: {rag_item}"
-            )
-
-        rag_entry["name"] = rag_name_value
-
-        # Add description if provided
+    transformed = []
+    for item in rag_config:
+        entry: Dict[str, Any] = {}
+        rag_details = item.get("rag_details", {})
+        value_obj = rag_details.get("value", {}) if isinstance(rag_details, dict) else {}
+        name        = value_obj.get("datasetname", item.get("name", ""))
+        corpus_id   = value_obj.get("vectorizeddatasetbaseid", item.get("resource_id", ""))
+        description = value_obj.get("description", "")
+        entry["name"] = name
         if description:
-            rag_entry["description"] = description
-
-        # Create config section
-        rag_entry["config"] = {}
-
-        # Handle resource_id - use vectorizeddatasetbaseid if available
-        resource_id = rag_item.get("resource_id", "")
-        if not resource_id and vectorized_dataset_base_id:
-            resource_id = vectorized_dataset_base_id
-            logger.info(
-                f"✅ Using vectorizeddatasetbaseid as resource ID for RAG '{rag_name_value}': {resource_id}"
-            )
-        elif not resource_id:
-            logger.warning(
-                f"⚠️ No resource_id or vectorizeddatasetbaseid found for RAG '{rag_name_value}', using empty string"
-            )
-
-        # Create rag_resources list with the resource_id
-        if resource_id:
-            rag_entry["config"]["rag_resources"] = [{"rag_resource": resource_id}]
+            entry["description"] = description
+        entry["config"] = {}
+        if corpus_id:
+            entry["config"]["rag_resources"] = [{"rag_resource": corpus_id}]
         else:
-            rag_entry["config"]["rag_resources"] = []
-
-        # Copy other rag fields into config
-        if "vector_distance_threshold" in rag_item:
-            rag_entry["config"]["vector_distance_threshold"] = rag_item[
-                "vector_distance_threshold"
-            ]
-        if "similarity_top_k" in rag_item:
-            rag_entry["config"]["similarity_top_k"] = rag_item["similarity_top_k"]
-
-        transformed_rag.append(rag_entry)
-
-    return transformed_rag
-
-
-def transform_mcp_config(tools: Dict[str, Any]) -> List[Dict[str, Any]]:
-    if "mcp" not in tools:
-        return []
-
-    mcp_config = tools.get("mcp", {})
-
-    # Check if mcp_config is a dict with mcp_servers or already a list
-    if isinstance(mcp_config, dict) and "mcp_servers" in mcp_config:
-        # Old format: {"mcp_servers": ["server1", "server2"]}
-        # Convert to new format with full server configuration
-        mcp_servers = mcp_config.get("mcp_servers", [])
-        transformed_mcp = []
-        for server_name in mcp_servers:
-            # Retrieve server configuration from external source
-            logger.info(
-                f"🔍 Retrieving MCP server configuration for '{server_name}'..."
-            )
-            server_config = get_mcp_server_config(server_name)
-            if server_config:
-                transformed_mcp.append(server_config)
-            else:
-                logger.warning(
-                    f"⚠️ Could not retrieve configuration for MCP server '{server_name}', skipping"
-                )
-        return transformed_mcp
-    elif isinstance(mcp_config, list):
-        # New format: already a list of server configurations
-        return mcp_config
-    else:
-        # Fallback to empty list
-        return []
-
-
-def transform_agent_for_yaml(agent: Dict[str, Any]) -> Dict[str, Any]:
-    """Transform agent configuration from JSON to YAML format."""
-    # Start with name as the first field
-    transformed = {}
-
-    # Add name first if it exists
-    if "name" in agent:
-        transformed["name"] = agent["name"]
-
-    # Fields to exclude from the output
-    exclude_fields = [
-        "model_id",
-        "tools",
-        "sub_agents",
-        "name",
-        "show_advanced_options",
-        "show_sub_agent_advanced",
-    ]
-
-    # Copy all other top-level fields except ones we'll handle specially
-    for key, value in agent.items():
-        if key not in exclude_fields:
-            transformed[key] = value
-
-    # Handle model_id - extract value if it's a dict
-    model_id = agent.get("model_id", {})
-    if isinstance(model_id, dict):
-        transformed["model_id"] = model_id.get("value", "gemini-2.0-flash-001")
-    else:
-        transformed["model_id"] = model_id or "gemini-2.0-flash-001"
-
-    # Handle tools configuration
-    tools = agent.get("tools", {})
-    if tools:
-        transformed["tools"] = {}
-
-        # Copy enabled_tools if present
-        if "enabled_tools" in tools:
-            transformed["tools"]["enabled_tools"] = tools["enabled_tools"]
-
-        if ("rag" in tools and 
-            tools["rag"].get("rag_details", {}) != {} and 
-            "RAG" in tools.get("enabled_tools", [])):
-            # Handle RAG tool using dedicated transformation method
-            rag_transformed = transform_rag_config(tools)
-            if rag_transformed:
-                transformed["tools"]["rag"] = rag_transformed
-
-        if ("mcp" in tools and 
-            tools["mcp"].get("mcp_servers", []) != [None] and 
-            "MCP" in tools.get("enabled_tools", [])):
-            # Handle MCP tool using dedicated transformation method
-            mcp_transformed = transform_mcp_config(tools)
-            if mcp_transformed:
-                transformed["tools"]["mcp"] = mcp_transformed
-
-    # Handle sub-agents (recursive transformation)
-    if agent.get("sub_agents"):
-        transformed["sub_agents"] = []
-        for sub_agent in agent.get("sub_agents", []):
-            transformed_sub_agent = transform_agent_for_yaml(sub_agent)
-            transformed["sub_agents"].append(transformed_sub_agent)
-
+            entry["config"]["rag_resources"] = []
+        for opt in ("vector_distance_threshold", "similarity_top_k"):
+            if opt in item:
+                entry["config"][opt] = item[opt]
+        transformed.append(entry)
     return transformed
 
 
-def merge_agents_to_root_config(
-    root_config: Dict[str, Any], agents: List[Dict[str, Any]]
-) -> Dict[str, Any]:
-    """Merge agents from JSON into the root agent configuration."""
-    merged_config = root_config.copy()
-
-    # Ensure the 'agents' key exists in root_agent
-    if "root_agent" not in merged_config:
-        merged_config["root_agent"] = {}
-
-    # Ensure agents is a list (handle None or missing key)
-    if "agents" not in merged_config or merged_config["agents"] is None:
-        merged_config["agents"] = []
-
-    # Transform and add each agent
-    for agent in agents:
-        transformed_agent = transform_agent_for_yaml(agent)
-        merged_config["agents"].append(transformed_agent)
-
-    logger.info(f"✅ Merged {len(agents)} agents into root configuration")
-    return merged_config
+def _transform_mcp(tools: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if "mcp" not in tools:
+        return []
+    mcp_config = tools.get("mcp", {})
+    if isinstance(mcp_config, dict) and "mcp_servers" in mcp_config:
+        result = []
+        for srv in mcp_config.get("mcp_servers", []):
+            if srv:
+                result.append({
+                    "name": srv,
+                    "description": f"MCP server: {srv}",
+                    "tool_filter": [],
+                    "config": {"server_url": ""},
+                })
+        return result
+    if isinstance(mcp_config, list):
+        return mcp_config
+    return []
 
 
-def save_agent_config_yaml(config: Dict[str, Any], output_file_path: str) -> bool:
-    """Save the merged agent configuration to a YAML file."""
-    try:
-        # Create a custom YAML dumper with proper indentation settings
-        class CustomDumper(yaml.SafeDumper):
-            def increase_indent(self, flow=False, indentless=False):
-                return super(CustomDumper, self).increase_indent(flow, False)
+# ── Agent → legacy YAML dict (for agent-config.yaml) ─────────────────────────
 
-        def dict_representer(dumper, data):
-            return dumper.represent_mapping("tag:yaml.org,2002:map", data.items())
+def _transform_agent_legacy(agent: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform one agent for the legacy agent-config.yaml format.
+    This is what agent_engine_deploy.py reads to build and deploy the agent.
+    """
+    out: Dict[str, Any] = {}
 
-        def list_representer(dumper, data):
-            return dumper.represent_sequence("tag:yaml.org,2002:seq", data)
+    if "name" in agent:
+        out["name"] = agent["name"]
 
-        CustomDumper.add_representer(dict, dict_representer)
-        CustomDumper.add_representer(list, list_representer)
+    # Fields excluded from direct copy (handled manually below)
+    exclude = {
+        "model", "tools", "sub_agents", "name",
+        "show_advanced_options", "show_sub_agent_advanced",
+        "agent_type",
+    }
 
-        with open(output_file_path, "w", encoding="utf-8") as f:
-            yaml.dump(
-                config,
-                f,
-                Dumper=CustomDumper,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-                indent=2,
-                width=float("inf"),  # Prevent line wrapping
-            )
-        logger.info(f"✅ Successfully saved agent configuration to {output_file_path}")
-        return True
-    except Exception as e:
-        logger.error(f"❌ Error saving agent configuration to YAML: {e}")
-        raise
+    # Copy all simple fields
+    for key, value in agent.items():
+        if key not in exclude:
+            out[key] = value
 
+    # agent_type → agent_class in output
+    if "agent_type" in agent:
+        out["agent_class"] = _resolve_agent_class(agent["agent_type"])
 
-def generate_agent_config(
-    agents_json_path: str = "agents.json",
-    root_config_yaml_path: str = "root-agent-config.yaml",
-    output_yaml_path: str = "agent-config.yaml",
-) -> bool:
-    """Generate agent-config.yaml by merging agents.json with root-agent-config.yaml."""
-    logger.info("🚀 Starting agent configuration generation...")
-
-    # Load agents from JSON
-    agents = load_agents_from_json(agents_json_path)
-    if not agents:
-        logger.error("❌ No agents loaded from JSON file. Aborting.")
-        return False
-
-    # Load root agent configuration
-    root_config = load_root_agent_config(root_config_yaml_path)
-    if not root_config:
-        logger.error("❌ Failed to load root agent configuration. Aborting.")
-        return False
-
-    # Merge agents into root configuration
-    merged_config = merge_agents_to_root_config(root_config, agents)
-
-    # Save to output file
-    success = save_agent_config_yaml(merged_config, output_yaml_path)
-
-    if success:
-        logger.info("✅ Agent configuration generation completed successfully!")
+    # model → model in output
+    model = agent.get("model", "")
+    if isinstance(model, dict):
+        out["model"] = model.get("value", "gemini-2.0-flash-001")
     else:
-        logger.error("❌ Agent configuration generation failed.")
+        out["model"] = model or "gemini-2.0-flash-001"
 
-    return success
+    # Tools
+    tools = agent.get("tools") or {}
+    if tools:
+        tools_out: Dict[str, Any] = {}
+        if "enabled_tools" in tools:
+            tools_out["enabled_tools"] = tools["enabled_tools"]
+        rag = _transform_rag(tools)
+        if rag:
+            tools_out["rag"] = rag
+        mcp = _transform_mcp(tools)
+        if mcp:
+            tools_out["mcp"] = mcp
+        if tools_out:
+            out["tools"] = tools_out
+
+    # Recurse into sub_agents
+    if agent.get("sub_agents"):
+        out["sub_agents"] = [
+            _transform_agent_legacy(sa) for sa in agent["sub_agents"]
+        ]
+
+    return out
 
 
-def get_mcp_server_config(server_name: str) -> Optional[Dict[str, Any]]:
-    """Retrieve MCP server configuration from an external source."""
-    try:
-        # TODO: Implement actual logic to retrieve MCP server configuration
+# ── Agent → ADK YAML dict (for root-agent.yaml / sub_agents/*.yaml) ──────────
 
-        logger.info(f"🔍 Retrieving configuration for MCP server '{server_name}'...")
+def _build_adk_yaml(agent: Dict[str, Any], sub_agents_list: List[str]) -> Dict[str, Any]:
+    """
+    Build one agent YAML in ADK format.
+    sub_agents_list = list of direct child agent names (not recursive — flat folder).
+    """
+    out: Dict[str, Any] = {}
 
-        # Placeholder: Return a default configuration
-        # In production, this should query a database or configuration service
-        default_config = {
-            "name": server_name,
-            "description": f"A tool to interact with the {server_name} MCP system.",
-            "tool_filter": [],
-            "config": {"server_url": f""},
+    # agent_class (mapped from agent_type)
+    out["agent_class"] = _resolve_agent_class(agent.get("agent_type", "LLMAgent"))
+
+    # model — only for LlmAgent
+    if out["agent_class"] == "LlmAgent" and agent.get("model"):
+        out["model"] = agent["model"]
+
+    # name (sanitised)
+    out["name"] = _sanitise_name(agent.get("name", ""))
+
+    # description
+    if agent.get("description"):
+        out["description"] = agent["description"]
+
+    # instruction — only for LlmAgent
+    if out["agent_class"] == "LlmAgent" and agent.get("instruction"):
+        out["instruction"] = agent["instruction"]
+
+    # generate_content_config — only for LlmAgent
+    if out["agent_class"] == "LlmAgent":
+        gcc = agent.get("generate_content_config") or {}
+        out["generate_content_config"] = {
+            "temperature":       gcc.get("temperature", 0.2),
+            "max_output_tokens": gcc.get("max_output_tokens", 2000),
         }
 
-        logger.info(
-            f"✅ Generated default configuration for MCP server '{server_name}'"
-        )
-        return default_config
+    # max_iterations — only for LoopAgent
+    if out["agent_class"] == "LoopAgent" and agent.get("max_iterations"):
+        out["max_iterations"] = agent["max_iterations"]
 
-        # fectch the MCP server configuration
+    # Null fields
+    out["input_schema"]  = agent.get("input_schema", None)
+    out["output_schema"] = agent.get("output_schema", None)
+    out["output_key"]    = agent.get("output_key", None)
 
-    except Exception as e:
-        logger.error(
-            f"❌ Error retrieving configuration for MCP server '{server_name}': {e}"
-        )
-        raise
+    if out["agent_class"] == "LlmAgent":
+        out["include_contents"] = agent.get("include_contents", None)
+        out["planner"]          = agent.get("planner", None)
 
+    # Tools
+    out["tools"] = {
+        "rag":         None,
+        "mcp":         None,
+        "openapi_spec": None,
+        "agent_tool":  None,
+    }
+
+    # Agent skills
+    out["agent_skills"] = None
+
+    # sub_agents — config_path references (flat sub_agents/ folder)
+    if sub_agents_list:
+        out["sub_agents"] = [
+            {"config_path": f"sub_agents/{_sanitise_name(n)}.yaml"}
+            for n in sub_agents_list
+        ]
+
+    return out
+
+
+# ── Collect all agents flat ───────────────────────────────────────────────────
+
+def _collect_all_agents(
+    agents: List[Dict[str, Any]],
+    collected: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """Walk the full agent tree and return every agent in a flat list."""
+    if collected is None:
+        collected = []
+    for agent in agents:
+        collected.append(agent)
+        sub = agent.get("sub_agents") or []
+        if sub:
+            _collect_all_agents(sub, collected)
+    return collected
+
+
+# ── Legacy agent-config.yaml builder ─────────────────────────────────────────
+
+def _build_legacy_config(
+    root_agent: Dict[str, Any],
+    all_agents: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Build the legacy agent-config.yaml structure that agent_engine_deploy.py reads.
+    Format matches the original merged YAML the skeleton expected.
+    """
+    merged: Dict[str, Any] = {}
+
+    # Root agent section
+    root_out = _transform_agent_legacy(root_agent)
+    root_out["sub_agents"] = [
+        _transform_agent_legacy(a) if not a.get("sub_agents")
+        else _transform_agent_legacy(a)
+        for a in all_agents
+    ]
+    merged["root_agent"] = root_out
+    merged["agents"] = [_transform_agent_legacy(a) for a in all_agents]
+
+    return merged
+
+
+# ── Main generation logic ─────────────────────────────────────────────────────
+
+def generate(json_path: str, output_dir: str) -> bool:
+    """
+    Read agents-config.json and write all output files into output_dir.
+
+    Returns True on success.
+    """
+    logger.info(f"🚀 Generating config files from: {json_path}")
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Validate
+    if "root_agent" not in data:
+        raise ValueError("agents-config.json missing required key: 'root_agent'")
+
+    root_agent   = data["root_agent"]
+    agents       = data.get("agents") or []
+    custom_agents = data.get("custom_agents") or []
+    all_agents   = agents + custom_agents   # custom_agents treated identically
+
+    if custom_agents:
+        logger.info(f"  Merging {len(custom_agents)} custom_agents with agents list")
+
+    os.makedirs(output_dir, exist_ok=True)
+    sub_agents_dir = os.path.join(output_dir, "sub_agents")
+    os.makedirs(sub_agents_dir, exist_ok=True)
+
+    # ── 1. agent-config.yaml (legacy — for deployment) ────────────────────────
+    legacy_config = _build_legacy_config(root_agent, all_agents)
+    _write_yaml(legacy_config, os.path.join(output_dir, "agent-config.yaml"))
+
+    # ── 2. root-agent.yaml (ADK format — for GitHub) ──────────────────────────
+    root_child_names = [a.get("name", "") for a in all_agents]
+    root_adk = _build_adk_yaml(root_agent, root_child_names)
+    _write_yaml(root_adk, os.path.join(output_dir, "root-agent.yaml"))
+
+    # ── 3. sub_agents/*.yaml (ADK format — for GitHub) ────────────────────────
+    all_flat = _collect_all_agents(all_agents)
+    for agent in all_flat:
+        child_names = [sa.get("name", "") for sa in (agent.get("sub_agents") or [])]
+        agent_adk   = _build_adk_yaml(agent, child_names)
+        safe_name   = _sanitise_name(agent.get("name", "agent"))
+        _write_yaml(agent_adk, os.path.join(sub_agents_dir, f"{safe_name}.yaml"))
+
+    total_sub = len(all_flat)
+    logger.info(
+        f"✅ ADK YAML: 1 root-agent.yaml + {total_sub} file(s) in sub_agents/"
+    )
+    logger.info("✅ Agent configuration generation completed successfully!")
+    return True
+
+
+# ── CLI entry point ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # Get the directory where this script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    parser = argparse.ArgumentParser(
+        description="Generate agent YAML config files from a unified agents-config.json"
+    )
+    parser.add_argument(
+        "--json-path",
+        required=True,
+        help="Path to agents-config.json",
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory where YAML files will be written (config/ folder)",
+    )
+    args = parser.parse_args()
 
-    # Define file paths relative to the script directory
-    agents_json = os.path.join(script_dir, "agents.json")
-    root_config_yaml = os.path.join(script_dir, "root-agent-config.yaml")
-    output_yaml = os.path.join(script_dir, "agent-config.yaml")
-
-    # Generate the agent configuration
-    generate_agent_config(agents_json, root_config_yaml, output_yaml)
+    generate(
+        json_path=os.path.abspath(args.json_path),
+        output_dir=os.path.abspath(args.output_dir),
+    )
