@@ -222,8 +222,22 @@ def generate_agent_config(
 
 
 if __name__ == "__main__":
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    generate_agent_config(
-        json_path=os.path.join(script_dir, "agents-config.json"),
-        output_dir=script_dir,
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--json-path",
+        default=None,
+        help="Path to agents-config.json (default: agents-config.json in this script's dir)",
     )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Directory to write generated YAML files (default: same dir as this script)",
+    )
+    args = parser.parse_args()
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    json_path  = os.path.abspath(args.json_path)  if args.json_path  else os.path.join(script_dir, "agents-config.json")
+    output_dir = os.path.abspath(args.output_dir) if args.output_dir else script_dir
+
+    generate_agent_config(json_path=json_path, output_dir=output_dir)

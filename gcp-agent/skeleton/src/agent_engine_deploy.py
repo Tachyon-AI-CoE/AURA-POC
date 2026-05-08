@@ -21,7 +21,6 @@ from config.config import (
     DNS_PEERING_DOMAIN,
     DNS_PEERING_DOMAIN_TARGET_PROJECT,
     DNS_PEERING_DOMAIN_TARGET_NETWORK,
-    ARIZE_ENDPOINT,
     SERVICE_ACCOUNT_NAME,
     MCP_SERVER_URL
 )
@@ -43,11 +42,11 @@ vertexai.init(project=PROJECT_ID, location=LOCATION, staging_bucket=STAGING_BUCK
 remote_agent = None
 # Now preparing the agent for deployment to the agent engine.
 requirements = [
-    "google-cloud-aiplatform[agent_engines,langchain,langchain_google_vertexai,aiplatform,adk]>=1.141.0",
+    "google-cloud-aiplatform[agent_engines,adk]>=1.141.0",
     "google-adk>=1.18.0",
-    "arize-otel==0.9.0",
-    "openinference-instrumentation-google-adk>=0.1.8",
     "requests>=2.31.0",
+    "google-cloud-secret-manager>=2.26.0",
+    "python-dotenv>=1.1.1",
 ]
 #extra_packages="agent.py",
 extra_packages=[
@@ -68,25 +67,19 @@ if guardrails_configured:
         "GUARDRAIL_NAME": GUARDRAIL_NAME,
         "GUARDRAIL_BUCKET_NAME": GUARDRAIL_BUCKET_NAME,
         "GUARDRAIL_BUCKET_PREFIX": GUARDRAIL_BUCKET_PREFIX,
-        "OTEL_LOG_LEVEL": "DEBUG",
-        "NO_PROXY": "otlp.arize.com",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": ARIZE_ENDPOINT,
-        "OTEL_EXPORTER_OTLP_TIMEOUT": "60000", #Optional, can prevent "context deadline exceeded" errors
     }
 else:
     logger.info("ℹ️ Guardrails are disabled. Proceeding without guardrail environment variables.")
-    env_vars_dict = {
-        "OTEL_LOG_LEVEL": "DEBUG",
-        "NO_PROXY": "otlp.arize.com",
-        "OTEL_EXPORTER_OTLP_ENDPOINT": ARIZE_ENDPOINT,
-        "OTEL_EXPORTER_OTLP_TIMEOUT": "60000", #Optional, can prevent "context deadline exceeded" errors
-    }
+    env_vars_dict = {}
 
 # Only add MCP_SERVER_URL if it's configured and not empty
 if MCP_SERVER_URL and MCP_SERVER_URL.strip():
     env_vars_dict["MCP_SERVER_URL"] = MCP_SERVER_URL
     logger.info("✅ MCP_SERVER_URL added to environment variables")
- 
+
+# Remove any env vars with empty/None values — Vertex AI rejects them
+env_vars_dict = {k: v for k, v in env_vars_dict.items() if v and str(v).strip()}
+
 try:
     import json
     client = vertexai.Client(
@@ -126,6 +119,7 @@ try:
                         "./load_rag_corpora.py",
                         "./utils",
                         "./content_filter",
+                        "./config",
                     ],
                     gcs_dir_name=agent_display_name.replace(" ", "_").lower(),
                     display_name=agent_display_name,
@@ -133,18 +127,32 @@ try:
                     env_vars=env_vars_dict,
                     service_account=SERVICE_ACCOUNT_NAME,
                     staging_bucket=STAGING_BUCKET,
-                    psc_interface_config={
-                        "network_attachment": NETWORK_ATTACHMENT,
-                        "dns_peering_configs": [
-                            {
-                                "domain": DNS_PEERING_DOMAIN,
-                                "target_project": DNS_PEERING_DOMAIN_TARGET_PROJECT,
-                                "target_network": DNS_PEERING_DOMAIN_TARGET_NETWORK,
-                            },
-                        ],
-                    },
+                    #uncommand for cloudbuild(local)
+                #     psc_interface_config={
+                #         "network_attachment": NETWORK_ATTACHMENT,
+                #         "dns_peering_configs": [
+                #             {
+                #                 "domain": DNS_PEERING_DOMAIN,
+                #                 "target_project": DNS_PEERING_DOMAIN_TARGET_PROJECT,
+                #                 "target_network": DNS_PEERING_DOMAIN_TARGET_NETWORK,
+                #             },
+                #         ],
+                #     },
+                # ),
+                    **({
+                        "psc_interface_config": {
+                            "network_attachment": NETWORK_ATTACHMENT,
+                            "dns_peering_configs": [
+                                {
+                                    "domain": DNS_PEERING_DOMAIN,
+                                    "target_project": DNS_PEERING_DOMAIN_TARGET_PROJECT,
+                                    "target_network": DNS_PEERING_DOMAIN_TARGET_NETWORK,
+                                },
+                            ],
+                        }
+                    } if NETWORK_ATTACHMENT else {}),
                 ),
-    )
+    )   #local 
     # remote_agent = agent_engines.create(
        
     #     agent_engine=app ,#agent_engines.ModuleAgent(module_name="adk_agent", agent_name="app", register_operations=_TEST_REGISTER_OPERATIONS),
@@ -241,13 +249,15 @@ try:
         "gcp_gemini_endpoint": gcp_gemini_endpoint,
         "creation_successful": True
     }
-    with open("/workspace/agent_output.json", "w") as f:
+    # with open("/workspace/agent_output.json", "w") as f:
+
+    _output_path = os.environ.get("AGENT_OUTPUT_PATH", "/workspace/agent_output.json")
+    with open(_output_path, "w") as f:
         json.dump(output_data, f)
-    logger.info(f"Agent information written to /workspace/agent_output.json")
-   
+    logger.info(f"Agent information written to {_output_path}")
+
 except Exception as e:
     logger.error(f"Failed to create agent: {e}")
-    # Create a fallback output file with empty values
     output_data = {
         "agent_base_id": "",
         "agent_alias_id": "",
@@ -256,7 +266,8 @@ except Exception as e:
         "creation_successful": False,
         "error": str(e)
     }
-    with open("/workspace/agent_output.json", "w") as f:
+    _output_path = os.environ.get("AGENT_OUTPUT_PATH", "/workspace/agent_output.json")
+    with open(_output_path, "w") as f:
         json.dump(output_data, f)
-    logger.info(f"Error information written to /workspace/agent_output.json")
+    logger.info(f"Error information written to {_output_path}")
     raise Exception(e)
