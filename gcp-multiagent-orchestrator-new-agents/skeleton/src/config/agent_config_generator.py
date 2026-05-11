@@ -179,7 +179,6 @@ def _transform_agent_legacy(agent: Dict[str, Any]) -> Dict[str, Any]:
         "agent_type",
     }
 
-<<<<<<< HEAD
     # Copy all simple fields
     for key, value in agent.items():
         if key not in exclude:
@@ -195,26 +194,6 @@ def _transform_agent_legacy(agent: Dict[str, Any]) -> Dict[str, Any]:
         out["model"] = model.get("value", "gemini-2.0-flash-001")
     else:
         out["model"] = model or "gemini-2.0-flash-001"
-=======
-    # Copy all simple fields — rename generate_content_config → llm_config for legacy format
-    for key, value in agent.items():
-        if key not in exclude:
-            if key == "generate_content_config":
-                out["llm_config"] = value  # multi_agent_builder.py expects llm_config
-            else:
-                out[key] = value
-
-    # agent_type → agent_class in legacy output (multi_agent_builder.py expects agent_class)
-    if "agent_type" in agent:
-        out["agent_class"] = _resolve_agent_class(agent["agent_type"])
-
-    # model → model_id in legacy output (multi_agent_builder.py expects model_id)
-    model = agent.get("model", "")
-    if isinstance(model, dict):
-        out["model_id"] = model.get("value", "gemini-2.0-flash-001")
-    else:
-        out["model_id"] = model or "gemini-2.0-flash-001"
->>>>>>> e4da0cd (feat: standardize field names and fix deployment for multiagent orchestrator skeleton)
 
     # Tools
     tools = agent.get("tools") or {}

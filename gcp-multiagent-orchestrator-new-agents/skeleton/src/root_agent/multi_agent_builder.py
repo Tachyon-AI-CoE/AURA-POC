@@ -520,3 +520,4 @@ def validate_config_file(config_path: str = None) -> bool:
 
     logger.info("✅ Configuration file validation completed successfully")
     return is_valid
+
