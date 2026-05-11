@@ -22,9 +22,6 @@ class MultiAgentBuilder:
 
     def __init__(self, config_path: str = None):
         if config_path is None:
-            # Navigate up to src folder, then into config folder
-            # __file__ is in src/root_agent/multi_agent_builder.py
-            # Go up one level to src/, then into config/
             config_path = os.path.join(
                 os.path.dirname(os.path.dirname(__file__)),
                 "config",
@@ -59,20 +56,14 @@ class MultiAgentBuilder:
             logger.error(f"❌ Invalid YAML configuration: {e}")
             raise yaml.YAMLError(f"Invalid YAML configuration: {e}") from e
 
-    # =========================================================================
-    # Agent Building Methods
-    # =========================================================================
-
     def _build_llm_agent(self, agent_config: Dict[str, Any]) -> LlmAgent:
         agent_name = agent_config.get("name", "unnamed_llm_agent")
         logger.debug(f"🔧 Building LLM agent: {agent_name}")
 
         try:
-            # Use the LlmAgentBuilder's from_yaml_config method with global config
             builder = LlmAgentBuilder()
             builder.from_yaml_config(agent_config, self.config)
 
-            # Build sub-agents if they exist
             sub_agents_config = agent_config.get("sub_agents", [])
             if sub_agents_config:
                 logger.debug(
@@ -81,7 +72,6 @@ class MultiAgentBuilder:
                 sub_agents = self._build_sub_agents(sub_agents_config)
                 builder.set_sub_agents(sub_agents)
 
-            # Build and return the agent
             agent = builder.apply_callbacks().build()
             logger.info(f"✅ Successfully built LLM agent: {agent_name}")
             return agent
@@ -109,7 +99,6 @@ class MultiAgentBuilder:
                     f"Building sub-agent {i+1}/{len(sub_agents_config)}: {agent_name} ({agent_class})"
                 )
 
-                # Use the main build_agent method to handle all agent types
                 sub_agent = self.build_agent(sub_agent_config)
                 sub_agents.append(sub_agent)
 
@@ -117,7 +106,6 @@ class MultiAgentBuilder:
 
             except Exception as e:
                 logger.warning(f"⚠️ Failed to build sub-agent '{agent_name}': {e}")
-                # Continue building other sub-agents even if one fails
 
         logger.info(
             f"✅ Successfully built {len(sub_agents)} out of {len(sub_agents_config)} sub-agents"
@@ -135,15 +123,11 @@ class MultiAgentBuilder:
         )
 
         try:
-            # Initialize the LoopAgentBuilder
             builder = LoopAgentBuilder()
-
-            # Set basic properties
             builder.set_name(name)
             builder.set_description(description)
             builder.set_max_iterations(max_iterations)
 
-            # Build sub-agents if they exist
             if sub_agents_config:
                 logger.debug(
                     f"Building {len(sub_agents_config)} sub-agents for Loop agent: {name}"
@@ -151,7 +135,6 @@ class MultiAgentBuilder:
                 sub_agents = self._build_sub_agents(sub_agents_config)
                 builder.set_sub_agents(sub_agents)
 
-            # Build and return the loop agent
             agent = builder.build()
             logger.info(f"✅ Successfully built Loop agent: {name}")
             return agent
@@ -168,14 +151,10 @@ class MultiAgentBuilder:
         logger.debug(f"🔧 Building Sequential agent: {name}")
 
         try:
-            # Initialize the SequentialAgentBuilder
             builder = SequentialAgentBuilder()
-
-            # Set basic properties
             builder.set_name(name)
             builder.set_description(description)
 
-            # Build sub-agents if they exist
             if sub_agents_config:
                 logger.debug(
                     f"Building {len(sub_agents_config)} sub-agents for Sequential agent: {name}"
@@ -183,7 +162,6 @@ class MultiAgentBuilder:
                 sub_agents = self._build_sub_agents(sub_agents_config)
                 builder.set_sub_agents(sub_agents)
 
-            # Build and return the sequential agent
             agent = builder.build()
             logger.info(f"✅ Successfully built Sequential agent: {name}")
             return agent
@@ -200,14 +178,10 @@ class MultiAgentBuilder:
         logger.debug(f"🔧 Building Parallel agent: {name}")
 
         try:
-            # Initialize the ParallelAgentBuilder
             builder = ParallelAgentBuilder()
-
-            # Set basic properties
             builder.set_name(name)
             builder.set_description(description)
 
-            # Build sub-agents if they exist
             if sub_agents_config:
                 logger.debug(
                     f"Building {len(sub_agents_config)} sub-agents for Parallel agent: {name}"
@@ -215,7 +189,6 @@ class MultiAgentBuilder:
                 sub_agents = self._build_sub_agents(sub_agents_config)
                 builder.set_sub_agents(sub_agents)
 
-            # Build and return the parallel agent
             agent = builder.build()
             logger.info(f"✅ Successfully built Parallel agent: {name}")
             return agent
@@ -223,10 +196,6 @@ class MultiAgentBuilder:
         except Exception as e:
             logger.error(f"❌ Failed to build Parallel agent '{name}': {e}")
             raise
-
-    # =========================================================================
-    # Public Interface Methods
-    # =========================================================================
 
     def build_agent(
         self, agent_config: Dict[str, Any]
@@ -240,12 +209,12 @@ class MultiAgentBuilder:
 
         logger.debug(f"🔧 Building agent '{agent_name}' of type '{agent_class}'")
 
-        # Map agent classes to their respective build methods
         agent_builders = {
-            "LLMAgent": self._build_llm_agent,
-            "LoopAgent": self._build_loop_agent,
+            "LLMAgent":        self._build_llm_agent,
+            "LlmAgent":        self._build_llm_agent,
+            "LoopAgent":       self._build_loop_agent,
             "SequentialAgent": self._build_sequential_agent,
-            "ParallelAgent": self._build_parallel_agent,
+            "ParallelAgent":   self._build_parallel_agent,
         }
 
         builder_method = agent_builders.get(agent_class)
@@ -291,7 +260,6 @@ class MultiAgentBuilder:
 
             except Exception as e:
                 logger.warning(f"⚠️ Failed to build agent '{agent_name}': {e}")
-                # Continue building other agents even if one fails
 
         logger.info(
             f"✅ Successfully built {len(agents)} out of {len(agents_config)} agents"
@@ -308,9 +276,11 @@ class MultiAgentBuilder:
             logger.error(f"❌ {error_msg}")
             raise ValueError(error_msg)
 
-        # Extract root agent parameters
         agent_class = root_config.get("agent_class", "LLMAgent")
-        agent_name = root_config.get("agent_display_name", "root_agent")
+        agent_name = (
+            root_config.get("agent_display_name")
+            or root_config.get("name", "root_agent")
+        )
         model_id = root_config.get("model_id", "gemini-2.0-flash-001")
         description = root_config.get("description", "")
         instruction = root_config.get("instruction", "")
@@ -323,10 +293,8 @@ class MultiAgentBuilder:
             f"Root agent configuration: name='{agent_name}', model='{model_id}', multiagent={multiagent}"
         )
 
-        # Process and combine instructions
         final_instruction = self._process_instructions(instruction, global_instruction)
 
-        # Create a modified root config for the builder
         root_agent_config = {
             "name": agent_name,
             "model_id": model_id,
@@ -337,17 +305,14 @@ class MultiAgentBuilder:
         }
 
         try:
-            # Initialize the LlmAgentBuilder and configure from YAML with global config
             builder = LlmAgentBuilder()
             builder.from_yaml_config(root_agent_config, self.config)
 
-            # Prepare sub-agents if multiagent is enabled
             if multiagent and include_sub_agents:
                 logger.info("🔧 Building sub-agents for root agent")
                 sub_agents = self.build_agents_from_config()
                 builder.set_sub_agents(sub_agents)
 
-            # Build the root agent
             if agent_class != "LLMAgent":
                 logger.warning(
                     f"Root agent class is '{agent_class}', but only 'LLMAgent' is supported. Using LLMAgent."
@@ -355,7 +320,6 @@ class MultiAgentBuilder:
 
             root_agent = builder.build()
 
-            # Store global_instruction as a custom attribute for backward compatibility
             if global_instruction:
                 setattr(root_agent, "global_instruction", global_instruction)
 
@@ -377,7 +341,6 @@ class MultiAgentBuilder:
     def _process_instructions(self, instruction: Any, global_instruction: Any) -> str:
         instruction_parts = []
 
-        # Add global_instruction first if provided
         if global_instruction:
             if isinstance(global_instruction, list):
                 global_instruction_text = "\n".join(
@@ -387,7 +350,6 @@ class MultiAgentBuilder:
                 global_instruction_text = str(global_instruction)
             instruction_parts.append(f"GLOBAL INSTRUCTIONS:\n{global_instruction_text}")
 
-        # Add regular instruction if provided
         if instruction:
             if isinstance(instruction, list):
                 instruction_text = "\n".join(f"- {instr}" for instr in instruction)
@@ -395,18 +357,12 @@ class MultiAgentBuilder:
                 instruction_text = str(instruction)
             instruction_parts.append(f"SPECIFIC INSTRUCTIONS:\n{instruction_text}")
 
-        # Combine instructions with appropriate formatting
         return "\n\n".join(instruction_parts) if instruction_parts else ""
-
-    # =========================================================================
-    # Configuration and Validation Methods
-    # =========================================================================
 
     def validate_config(self) -> bool:
         """Validate the configuration structure and required fields."""
         logger.info("🔍 Validating configuration structure")
 
-        # Check if root_agent section exists
         if "root_agent" not in self.config:
             error_msg = "Missing 'root_agent' section in configuration"
             logger.error(f"❌ {error_msg}")
@@ -414,20 +370,18 @@ class MultiAgentBuilder:
 
         root_config = self.config["root_agent"]
 
-        # Define supported agent classes
         supported_classes = [
             "LLMAgent",
+            "LlmAgent",
             "LoopAgent",
             "SequentialAgent",
             "ParallelAgent",
         ]
 
-        # Validate root agent configuration
         self._validate_agent_config(
             root_config, "root_agent", supported_classes, is_root=True
         )
 
-        # Validate agents section
         agents_config = self.config.get("agents", [])
         if agents_config:
             logger.debug(f"Validating {len(agents_config)} agent configurations")
@@ -453,17 +407,19 @@ class MultiAgentBuilder:
         supported_classes: List[str],
         is_root: bool = False,
     ) -> None:
-        # Check required fields based on agent type
+        # LLM-only fields (instruction, model_id) not required for
+        # LoopAgent, ParallelAgent, SequentialAgent — they have no LLM
+        agent_class_val = agent_config.get("agent_class", "LLMAgent")
+        is_llm = agent_class_val in {"LLMAgent", "LlmAgent"}
+
         if is_root:
-            required_fields = ["agent_class", "model_id", "description", "instruction"]
+            required_fields = ["agent_class", "description"]
+            if is_llm:
+                required_fields += ["model_id", "instruction"]
         else:
-            required_fields = [
-                "name",
-                "agent_class",
-                "description",
-                "model_id",
-                "instruction",
-            ]
+            required_fields = ["name", "agent_class", "description"]
+            if is_llm:
+                required_fields += ["model_id", "instruction"]
 
         for field in required_fields:
             if field not in agent_config:
@@ -471,7 +427,6 @@ class MultiAgentBuilder:
                     f"Missing required field '{field}' in {agent_identifier} configuration"
                 )
 
-        # Validate agent class
         agent_class = agent_config.get("agent_class")
         if agent_class not in supported_classes:
             if is_root and agent_class != "LLMAgent":
@@ -485,12 +440,7 @@ class MultiAgentBuilder:
                     f"Supported classes: {supported_classes}"
                 )
 
-    # =========================================================================
-    # Utility and Debug Methods
-    # =========================================================================
-
     def print_agent_hierarchy(self, agent=None, indent: int = 0) -> None:
-        """Print the agent hierarchy for debugging purposes."""
         if agent is None:
             logger.info("🔧 Building root agent to display hierarchy...")
             try:
@@ -505,26 +455,22 @@ class MultiAgentBuilder:
             logger.error("❌ No root agent found or agent is None")
             return
 
-        # Display current agent
         prefix = "  " * indent
         agent_type = type(agent).__name__
         agent_name = getattr(agent, "name", "unnamed")
 
         logger.info(f"{prefix}├─ {agent_name} ({agent_type})")
 
-        # Recursively display sub-agents
         if hasattr(agent, "sub_agents") and agent.sub_agents:
             logger.debug(f"{prefix}│  └─ {len(agent.sub_agents)} sub-agents:")
 
             for i, sub_agent in enumerate(agent.sub_agents):
-                # Use different prefix for last sub-agent
                 is_last = i == len(agent.sub_agents) - 1
                 self.print_agent_hierarchy(sub_agent, indent + 1)
         else:
             logger.debug(f"{prefix}│  └─ No sub-agents")
 
     def get_agent_count(self, agent=None) -> Dict[str, int]:
-        """Get count of agents by type in the hierarchy."""
         if agent is None:
             agent = self.build_root_agent(include_sub_agents=True)
 
@@ -542,26 +488,17 @@ class MultiAgentBuilder:
         return counts
 
 
-# =============================================================================
-# Convenience Functions
-# =============================================================================
-
-
 def build_multi_agent_system(config_path: str = None) -> LlmAgent:
-    """Build a complete multi-agent system from YAML configuration."""
     logger.info(
         f"🔧 Building multi-agent system from config: {config_path or 'default'}"
     )
 
     try:
-        # Create builder and validate configuration
         builder = MultiAgentBuilder(config_path)
         builder.validate_config()
 
-        # Build and return the complete system
         root_agent = builder.build_root_agent(include_sub_agents=True)
 
-        # Log system summary
         agent_counts = builder.get_agent_count(root_agent)
         total_agents = sum(agent_counts.values())
         logger.info(
@@ -576,7 +513,6 @@ def build_multi_agent_system(config_path: str = None) -> LlmAgent:
 
 
 def validate_config_file(config_path: str = None) -> bool:
-    """Validate a configuration file without building the agents."""
     logger.info(f"🔍 Validating configuration file: {config_path or 'default'}")
 
     builder = MultiAgentBuilder(config_path)
