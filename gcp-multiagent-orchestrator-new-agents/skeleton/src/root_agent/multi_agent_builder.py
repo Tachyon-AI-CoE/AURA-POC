@@ -281,7 +281,7 @@ class MultiAgentBuilder:
             root_config.get("agent_display_name")
             or root_config.get("name", "root_agent")
         )
-        model_id = root_config.get("model_id", "gemini-2.0-flash-001")
+        model_id = root_config.get("model", root_config.get("model_id", "gemini-2.0-flash-001"))
         description = root_config.get("description", "")
         instruction = root_config.get("instruction", "")
         global_instruction = root_config.get("global_instruction", "")
@@ -297,7 +297,7 @@ class MultiAgentBuilder:
 
         root_agent_config = {
             "name": agent_name,
-            "model_id": model_id,
+            "model": model_id,
             "description": description,
             "instruction": final_instruction,
             "output_key": output_key,
@@ -415,11 +415,11 @@ class MultiAgentBuilder:
         if is_root:
             required_fields = ["agent_class", "description"]
             if is_llm:
-                required_fields += ["model_id", "instruction"]
+                required_fields += ["model", "instruction"]
         else:
             required_fields = ["name", "agent_class", "description"]
             if is_llm:
-                required_fields += ["model_id", "instruction"]
+                required_fields += ["model", "instruction"]
 
         for field in required_fields:
             if field not in agent_config:
