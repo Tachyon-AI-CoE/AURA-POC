@@ -179,16 +179,19 @@ def _transform_agent_legacy(agent: Dict[str, Any]) -> Dict[str, Any]:
         "agent_type",
     }
 
-    # Copy all simple fields
+    # Copy all simple fields — rename generate_content_config → llm_config for legacy format
     for key, value in agent.items():
         if key not in exclude:
-            out[key] = value
+            if key == "generate_content_config":
+                out["llm_config"] = value  # multi_agent_builder.py expects llm_config
+            else:
+                out[key] = value
 
-    # agent_type → agent_class in output
+    # agent_type → agent_class in legacy output (multi_agent_builder.py expects agent_class)
     if "agent_type" in agent:
         out["agent_class"] = _resolve_agent_class(agent["agent_type"])
 
-    # model → model in output
+    # model → model in legacy output (standardized field name)
     model = agent.get("model", "")
     if isinstance(model, dict):
         out["model"] = model.get("value", "gemini-2.0-flash-001")
@@ -406,3 +409,4 @@ if __name__ == "__main__":
         json_path=os.path.abspath(args.json_path),
         output_dir=os.path.abspath(args.output_dir),
     )
+
