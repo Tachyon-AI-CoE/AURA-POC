@@ -1,0 +1,440 @@
+openapi: 3.1.0
+info:
+  title: AURA-POC — AI Component Scaffolding Service
+  description: |
+    FastAPI service that scaffolds new AI components into a shared GitHub repository.
+    Today scaffolds single agents and multiagent orchestrators / workflows.
+    RAG pipelines, guardrails, and other AI building blocks are planned future templates.
+
+    Contract is the source of truth — see `spec.md` for the corresponding FR-* / NFR-* ids.
+  version: "0.1.0"
+  license:
+    name: Internal
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: Health
+    description: Liveness and readiness probes.
+  - name: Templates
+    description: Discover supported scaffold component types.
+  - name: Scaffold
+    description: Create a new AI component project from a structured input.
+
+security: []   # default unauthenticated; /scaffold opts in via securityRequirements below
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness probe (FR-1)
+      description: Returns a fixed payload identifying the service version. Does not check GitHub reachability.
+      operationId: getHealthz
+      responses:
+        "200":
+          description: Service is alive.
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              examples:
+                ok:
+                  value:
+                    status: ok
+                    version: "0.1.0"
+                    timestamp: "2026-05-12T09:30:00.000000+00:00"
+
+  /templates:
+    get:
+      tags: [Templates]
+      summary: List supported scaffold types (FR-2)
+      description: |
+        Returns the source monorepo name, the list of registered `scaffold_type` values,
+        and a map of each type to its full skeleton path inside the monorepo.
+      operationId: listTemplates
+      responses:
+        "200":
+          description: Registered scaffold templates.
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplatesResponse"
+              examples:
+                current:
+                  value:
+                    monorepo: "AURA-POC"
+                    supported_scaffold_types:
+                      - agent_clientapp
+                      - multiagent_orchestrator
+                      - multiagent_workflow
+                      - rag_pipeline
+                      - single_agent
+                      - single_agent_api
+                    registry:
+                      single_agent: "AURA-POC/gcp-agent/skeleton"
+                      multiagent_orchestrator: "AURA-POC/gcp-multiagent-orchestrator-new-agents/skeleton"
+
+  /scaffold:
+    post:
+      tags: [Scaffold]
+      summary: Create a new AI component project (FR-3)
+      description: |
+        Takes a structured `AgentInput`, mints a GitHub App installation token, downloads
+        the appropriate skeleton, generates the configuration files, and pushes the result
+        into `aura-generated-agents/<repo_name>/`.
+
+        For backward compatibility with the pre-refactor pipeline, if the request body is
+        empty the service falls back to reading `AGENT_INPUT_PATH` from disk (FR-11,
+        transitional — will be removed in v0.2).
+      operationId: createScaffold
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScaffoldRequest"
+            examples:
+              singleAgent:
+                summary: Single agent (weather/travel assistant)
+                value:
+                  agent_input:
+                    scaffold_type: single_agent
+                    repo_name: sn_singleagent
+                    description: "Single LLM agent for trip planning and packing advice."
+                    root_agent:
+                      name: sn_singleagent
+                      agent_type: LLMAgent
+                      model: gemini-2.0-flash-001
+                      description: "WeatherTravelAssistant — conversational travel planner."
+                      instruction: "You are WeatherTravelAssistant..."
+                      generate_content_config:
+                        temperature: 0.1
+                        top_p: 0.95
+                        max_output_tokens: 2048
+                      output_key: travel_response
+                      multiagent: false
+                    agents: []
+              multiagent:
+                summary: Multi-agent PDLC orchestrator
+                value:
+                  agent_input:
+                    scaffold_type: multiagent_orchestrator
+                    repo_name: mm-pdlc-multiagent-poc
+                    description: "PDLC Multi-Agent Orchestrator."
+                    root_agent:
+                      name: PDLCOrchestrator
+                      agent_type: LLMAgent
+                      model: gemini-2.0-flash-001
+                      description: "Coordinates story creation, test cases, Jira tickets."
+                      instruction: "You are the PDLC Orchestrator..."
+                      generate_content_config:
+                        temperature: 0.2
+                        top_p: 0.95
+                        max_output_tokens: 2000
+                      multiagent: true
+                    agents:
+                      - name: story_refinement_loop
+                        agent_type: LoopAgent
+                        description: "Generates and refines user stories."
+                        max_iterations: 2
+                        workflow: true
+                        sub_agents: []
+      responses:
+        "201":
+          description: Scaffold created.
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/XRequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScaffoldResponse"
+              examples:
+                created:
+                  value:
+                    job_id: "01HX2J0KQ8C8VZJ8M2QJ7E1B0F"
+                    status: success
+                    scaffold_type: single_agent
+                    repo_url: "https://github.com/Tachyon-AI-CoE/aura-generated-agents/tree/main/sn_singleagent"
+                    config_path: "sn_singleagent/config/agents-config.json"
+                    template_used: "('AURA-POC', 'gcp-agent')"
+                    created_at: "2026-05-12T09:30:00.000000+00:00"
+                    message: "Repository 'sn_singleagent' created successfully."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/BadGateway"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Static bearer token matched against `SCAFFOLD_API_KEY` (FR-4).
+
+  headers:
+    XRequestId:
+      description: Correlation id for the request (FR-10). Echoed if supplied, otherwise generated as a ULID.
+      schema:
+        type: string
+        example: "01HX2J0KQ8C8VZJ8M2QJ7E1B0F"
+
+  responses:
+    BadRequest:
+      description: Bad request — invalid scaffold_type, missing required input, or semantic validation failure.
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            templateNotFound:
+              value:
+                type: "https://errors.aura.example.com/template-not-found"
+                title: "Template not found"
+                status: 400
+                code: TEMPLATE_NOT_FOUND
+                detail: "Unknown scaffold_type 'foo'. Supported: agent_clientapp, multiagent_orchestrator, multiagent_workflow, rag_pipeline, single_agent, single_agent_api"
+                instance: "/scaffold"
+                request_id: "01HX2J0KQ8C8VZJ8M2QJ7E1B0F"
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: Target subfolder already exists in `aura-generated-agents`.
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            agentExists:
+              value:
+                type: "https://errors.aura.example.com/agent-already-exists"
+                title: "Component already exists"
+                status: 409
+                code: AGENT_ALREADY_EXISTS
+                detail: "A folder named 'sn_singleagent' already exists in aura-generated-agents."
+                instance: "/scaffold"
+                request_id: "01HX2J0KQ8C8VZJ8M2QJ7E1B0F"
+    UnprocessableEntity:
+      description: Pydantic body validation failure.
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalServerError:
+      description: Scaffold pipeline failed after authentication.
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    BadGateway:
+      description: GitHub App auth failed (JWT mint, IAT exchange, or private-key load).
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/XRequestId"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, version, timestamp]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          example: "0.1.0"
+        timestamp:
+          type: string
+          format: date-time
+
+    TemplatesResponse:
+      type: object
+      required: [monorepo, supported_scaffold_types, registry]
+      additionalProperties: false
+      properties:
+        monorepo:
+          type: string
+          example: AURA-POC
+        supported_scaffold_types:
+          type: array
+          items:
+            type: string
+        registry:
+          type: object
+          additionalProperties:
+            type: string
+
+    ScaffoldRequest:
+      type: object
+      required: [agent_input]
+      additionalProperties: false
+      properties:
+        agent_input:
+          $ref: "#/components/schemas/AgentInput"
+
+    AgentInput:
+      type: object
+      required: [scaffold_type, repo_name, root_agent]
+      additionalProperties: false
+      properties:
+        scaffold_type:
+          type: string
+          description: One of the registered scaffold types (see `GET /templates`).
+        repo_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: "^[a-z0-9][a-z0-9_-]{0,99}$"
+        description:
+          type: string
+          maxLength: 500
+          default: "Scaffolded by AURA platform"
+        root_agent:
+          $ref: "#/components/schemas/RootAgent"
+        agents:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/SubAgent"
+        custom_agents:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/SubAgent"
+
+    RootAgent:
+      type: object
+      required: [name, agent_type, model, description, instruction, generate_content_config]
+      additionalProperties: false
+      properties:
+        name:               { type: string }
+        agent_type:         { type: string, example: LLMAgent }
+        model:              { type: string, example: gemini-2.0-flash-001 }
+        description:        { type: string }
+        instruction:        { type: string }
+        generate_content_config:
+          $ref: "#/components/schemas/GenerateContentConfig"
+        output_key:         { type: [string, "null"] }
+        input_schema:       { type: [object, "null"] }
+        output_schema:      { type: [object, "null"] }
+        include_contents:   { type: [string, "null"] }
+        planner:            { type: [object, "null"] }
+        multiagent:         { type: boolean, default: false }
+
+    SubAgent:
+      type: object
+      required: [name, agent_type, description]
+      additionalProperties: false
+      properties:
+        name:               { type: string }
+        agent_type:         { type: string, example: LoopAgent }
+        description:        { type: string }
+        instruction:        { type: [string, "null"] }
+        model:              { type: [string, "null"] }
+        generate_content_config:
+          oneOf:
+            - $ref: "#/components/schemas/GenerateContentConfig"
+            - type: "null"
+        output_key:         { type: [string, "null"] }
+        include_contents:   { type: [string, "null"] }
+        rag_enabled:        { type: boolean, default: false }
+        workflow:           { type: boolean, default: false }
+        max_iterations:     { type: [integer, "null"], minimum: 1, description: "LoopAgent only." }
+        input_schema:       { type: [object, "null"] }
+        output_schema:      { type: [object, "null"] }
+        planner:            { type: [object, "null"] }
+        tools:              { type: [object, "null"] }
+        sub_agents:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/SubAgent"
+
+    GenerateContentConfig:
+      type: object
+      required: [temperature, top_p, max_output_tokens]
+      additionalProperties: false
+      properties:
+        temperature:        { type: number, minimum: 0, maximum: 2 }
+        top_p:              { type: number, minimum: 0, maximum: 1 }
+        top_k:              { type: [integer, "null"], minimum: 0 }
+        max_output_tokens:  { type: integer, minimum: 1 }
+
+    ScaffoldResponse:
+      type: object
+      required: [job_id, status, scaffold_type, repo_url, config_path, template_used, created_at, message]
+      additionalProperties: false
+      properties:
+        job_id:        { type: string }
+        status:        { type: string, enum: [success] }
+        scaffold_type: { type: string }
+        repo_url:      { type: string, format: uri }
+        config_path:   { type: string }
+        template_used: { type: string }
+        created_at:    { type: string, format: date-time }
+        message:       { type: string }
+
+    Problem:
+      type: object
+      description: RFC 7807 problem+json with AURA extensions `code` and `request_id`.
+      required: [type, title, status, code, detail, instance, request_id]
+      additionalProperties: false
+      properties:
+        type:       { type: string, format: uri }
+        title:      { type: string }
+        status:     { type: integer, minimum: 400, maximum: 599 }
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHORIZED
+            - TEMPLATE_NOT_FOUND
+            - AGENT_ALREADY_EXISTS
+            - INVALID_AGENT_INPUT
+            - GITHUB_AUTH_FAILED
+            - SCAFFOLD_FAILED
+        detail:     { type: string }
+        instance:   { type: string }
+        request_id: { type: string }

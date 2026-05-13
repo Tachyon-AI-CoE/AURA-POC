@@ -1,8 +1,0 @@
-{
-    "NAME": "${{ values.name }}",
-    "DESCRIPTION": "${{ values.description }}",
-    "AGENT_ID": "${{ values.agent_id }}",
-    "REGION": "${{ values.region }}",
-    "PROJECT_ID": "${{ values.project_id }}",
-    "PROJECT_NUMBER": "${{ values.project_number }}"
-}

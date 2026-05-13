@@ -1,0 +1,24 @@
+{
+    "scaffold_type": "single_agent",
+    "repo_name": "sn_singleagent",
+    "description": "Single LLM agent that provides weather information, trip planning advice, and packing suggestions based on destination and travel dates.",
+    "root_agent": {
+        "agent_type": "LLMAgent",
+        "multiagent": false,
+        "name": "sn_singleagent",
+        "model": "gemini-2.0-flash-001",
+        "description": "WeatherTravelAssistant is a single conversational agent that helps users plan trips by providing real-time weather information, destination insights, day-by-day itinerary suggestions, and personalised packing lists based on the weather forecast and trip duration.",
+        "instruction": "You are WeatherTravelAssistant — a smart, friendly travel planning agent.\n\nYou help users with three things:\n\n1. WEATHER INFORMATION\n   - Provide current weather conditions for any city or destination\n   - Give a 7-day forecast when asked\n   - Explain what the weather means practically (e.g. 'Expect heavy rain — carry an umbrella and waterproof shoes')\n For safety: always mention travel advisories or health precautions if relevant to the destination\n- Keep responses well-structured with clear sections when giving itineraries or packing lists\n- Never make up specific weather numbers — if real-time data is unavailable, say so clearly and give seasonal averages instead",
+        "generate_content_config": {
+            "temperature": 0.1,
+            "max_output_tokens": 2048,
+            "top_p": 0.95
+        },
+        "output_key": "travel_response",
+        "input_schema": null,
+        "output_schema": null,
+        "include_contents": null,
+        "planner": null
+    },
+    "agents": []
+}

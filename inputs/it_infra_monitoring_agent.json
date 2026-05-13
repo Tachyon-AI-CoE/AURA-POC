@@ -1,0 +1,155 @@
+{
+  "scaffold_type": "multiagent_orchestrator",
+  "repo_name": "it-infra-monitoring-agent",
+  "description": "IT Infrastructure Monitoring Multi-Agent — monitors servers, detects anomalies, generates incident reports, and creates remediation tickets.",
+  "root_agent": {
+    "name": "ITInfraMonitoringOrchestrator",
+    "agent_type": "LLMAgent",
+    "multiagent": true,
+    "model": "gemini-2.0-flash-001",
+    "description": "ITInfraMonitoringOrchestrator is the root agent for the IT Infrastructure Monitoring system. It coordinates monitoring, anomaly detection, incident reporting, and remediation ticket creation across the infrastructure.",
+    "instruction": "You are the IT Infrastructure Monitoring Orchestrator.\n\nYour responsibilities:\n1. Receive infrastructure metrics or alert data from the user\n2. Delegate to metrics_analyzer to assess current system health\n3. If anomalies are detected, delegate to anomaly_detector for deep analysis\n4. Delegate to incident_report_generator to create a structured incident report\n5. Finally delegate to remediation_ticket_creator to raise actionable tickets\n\nAlways pass full context between steps.\nIf no anomalies detected, confirm system health and stop.\nIf critical severity detected, flag it clearly in your final response.",
+    "generate_content_config": {
+      "temperature": 0.2,
+      "max_output_tokens": 2000
+    },
+    "input_schema": null,
+    "output_schema": null,
+    "output_key": null,
+    "include_contents": null,
+    "planner": null,
+    "tools": {
+      "enabled_tools": [],
+      "rag": [],
+      "mcp": []
+    }
+  },
+  "agents": [
+    {
+      "name": "metrics_analyzer",
+      "agent_type": "LLMAgent",
+      "model": "gemini-2.0-flash-001",
+      "description": "Analyzes raw infrastructure metrics (CPU, memory, disk, network, latency) and produces a structured health assessment with trend analysis.",
+      "instruction": "You are a Senior Infrastructure Metrics Analyst.\n\nAnalyze the provided infrastructure metrics and produce a health assessment.\n\nFor each metric evaluate:\n- Current value vs threshold (Warning: 70-85%, Critical: >85%)\n- Trend: stable / increasing / decreasing / spike\n- Impact: None / Low / Medium / High / Critical\n\nOutput JSON:\n{\n  'overall_health': 'Healthy / Degraded / Critical',\n  'metrics_summary': [\n    {\n      'metric': 'CPU Usage',\n      'server': 'web-server-01',\n      'current_value': '92%',\n      'threshold': '85%',\n      'status': 'Critical',\n      'trend': 'increasing',\n      'impact': 'High'\n    }\n  ],\n  'anomalies_detected': true,\n  'affected_servers': ['web-server-01'],\n  'recommended_action': 'Immediate investigation required'\n}",
+      "generate_content_config": {
+        "temperature": 0.1,
+        "max_output_tokens": 3000
+      },
+      "input_schema": null,
+      "output_schema": null,
+      "output_key": "metrics_analysis_output",
+      "include_contents": "default",
+      "planner": null,
+      "tools": {
+        "enabled_tools": [],
+        "rag": [],
+        "mcp": []
+      },
+      "sub_agents": []
+    },
+    {
+      "name": "anomaly_detection_loop",
+      "agent_type": "LoopAgent",
+      "description": "Runs anomaly detection and validation in a loop. First pass detects anomalies, second pass validates and filters false positives. Exits when confidence score >= 0.85.",
+      "max_iterations": 2,
+      "output_key": "anomaly_detection_output",
+      "include_contents": "default",
+      "input_schema": null,
+      "output_schema": null,
+      "tools": {
+        "enabled_tools": [],
+        "rag": [],
+        "mcp": []
+      },
+      "sub_agents": [
+        {
+          "name": "anomaly_detector",
+          "agent_type": "LLMAgent",
+          "model": "gemini-2.0-flash-001",
+          "description": "Detects anomalies in infrastructure metrics using pattern recognition and baseline comparison. Identifies root cause candidates.",
+          "instruction": "You are an Infrastructure Anomaly Detection Specialist.\n\nFrom the metrics analysis, identify anomalies using these patterns:\n- Sudden spike: value increased >30% in <5 minutes\n- Sustained high: value above threshold for >15 minutes\n- Correlated failure: multiple metrics degraded simultaneously\n- Cascade risk: one degraded service affecting downstream services\n\nFor each anomaly output:\n{\n  'anomaly_id': 'ANO-001',\n  'type': 'sustained_high / sudden_spike / correlated_failure / cascade_risk',\n  'affected_component': 'web-server-01 CPU',\n  'severity': 'Low / Medium / High / Critical',\n  'confidence_score': 0.92,\n  'root_cause_candidates': ['Memory leak in application', 'DDoS attack'],\n  'blast_radius': 'Single server / Service / Region / Global',\n  'time_to_impact': '15 minutes'\n}",
+          "generate_content_config": {
+            "temperature": 0.1,
+            "max_output_tokens": 3000
+          },
+          "input_schema": null,
+          "output_schema": null,
+          "output_key": "anomaly_output",
+          "include_contents": "default",
+          "planner": null,
+          "tools": {
+            "enabled_tools": [],
+            "rag": [],
+            "mcp": []
+          }
+        },
+        {
+          "name": "false_positive_validator",
+          "agent_type": "LLMAgent",
+          "model": "gemini-2.0-flash-001",
+          "description": "Validates detected anomalies against known maintenance windows, deployment events, and historical baselines to filter false positives.",
+          "instruction": "You are an Infrastructure Anomaly Validation Specialist.\n\nReview each detected anomaly and determine if it is a genuine incident or a false positive.\n\nCheck for:\n- Scheduled maintenance windows (planned downtime)\n- Recent deployments (expected performance impact)\n- Seasonal patterns (known traffic spikes)\n- Monitoring gaps (data collection issues)\n\nFor each anomaly output:\n{\n  'anomaly_id': 'ANO-001',\n  'validated': true,\n  'is_false_positive': false,\n  'false_positive_reason': null,\n  'confidence_score': 0.95,\n  'validation_notes': 'No maintenance window active. Deployment was 6 hours ago.',\n  'proceed_to_incident': true\n}\n\nSet proceed_to_incident=true only for validated genuine anomalies with confidence >= 0.85.\nIf all anomalies are false positives, set overall approved=true to exit the loop.",
+          "generate_content_config": {
+            "temperature": 0.2,
+            "max_output_tokens": 2000
+          },
+          "input_schema": null,
+          "output_schema": null,
+          "output_key": "validation_output",
+          "include_contents": "default",
+          "planner": null,
+          "tools": {
+            "enabled_tools": [],
+            "rag": [],
+            "mcp": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "incident_report_generator",
+      "agent_type": "LLMAgent",
+      "model": "gemini-2.0-flash-001",
+      "description": "Generates a structured IT incident report from validated anomalies. Produces a report ready for the on-call team and management.",
+      "instruction": "You are an IT Incident Report Specialist.\n\nFrom the validated anomalies, generate a formal incident report.\n\nReport structure:\n{\n  'incident_id': 'INC-2026-NNNN',\n  'title': 'concise incident title',\n  'severity': 'P1 / P2 / P3 / P4',\n  'status': 'Investigating',\n  'detected_at': 'ISO timestamp',\n  'affected_services': ['service1', 'service2'],\n  'affected_users': 'estimated count or percentage',\n  'business_impact': 'description of business impact',\n  'technical_summary': 'what is happening technically',\n  'root_cause_hypothesis': 'most likely root cause',\n  'immediate_actions_taken': [],\n  'recommended_next_steps': [],\n  'escalation_required': true,\n  'escalation_team': 'team name',\n  'sla_breach_risk': true,\n  'sla_breach_time': '30 minutes'\n}\n\nSeverity mapping:\n- P1: Critical — service down, major revenue impact\n- P2: High — degraded performance, partial outage\n- P3: Medium — minor degradation, workaround available\n- P4: Low — informational, no immediate impact",
+      "generate_content_config": {
+        "temperature": 0.2,
+        "max_output_tokens": 3000
+      },
+      "input_schema": null,
+      "output_schema": null,
+      "output_key": "incident_report_output",
+      "include_contents": "default",
+      "planner": null,
+      "tools": {
+        "enabled_tools": [],
+        "rag": [],
+        "mcp": []
+      },
+      "sub_agents": []
+    },
+    {
+      "name": "remediation_ticket_creator",
+      "agent_type": "LLMAgent",
+      "model": "gemini-2.0-flash-001",
+      "description": "Creates structured remediation tickets from the incident report. Produces Jira-ready payloads with clear action items, assignees, and SLA targets.",
+      "instruction": "You are an IT Remediation Ticket Specialist.\n\nFrom the incident report, create actionable remediation tickets.\n\nFor each required action create a ticket:\n{\n  'ticket_id': 'OPS-NNNN',\n  'incident_id': 'INC-2026-NNNN',\n  'title': 'clear action title',\n  'type': 'Investigation / Fix / Monitoring / Communication',\n  'priority': 'Highest / High / Medium / Low',\n  'assignee_team': 'team responsible',\n  'description': 'detailed steps to execute',\n  'acceptance_criteria': ['criterion 1', 'criterion 2'],\n  'estimated_effort': '30 mins / 2 hours / 1 day',\n  'due_by': 'relative time e.g. 30 minutes from now',\n  'dependencies': [],\n  'labels': ['incident', 'infrastructure', 'aura-generated']\n}\n\nAlways create at minimum:\n1. An investigation ticket\n2. A fix/remediation ticket\n3. A post-incident review ticket\n\nOutput: { 'tickets': [...], 'total_tickets': N, 'critical_path_ticket': 'OPS-NNNN' }",
+      "generate_content_config": {
+        "temperature": 0.1,
+        "max_output_tokens": 3000
+      },
+      "input_schema": null,
+      "output_schema": null,
+      "output_key": "remediation_tickets_output",
+      "include_contents": "default",
+      "planner": null,
+      "tools": {
+        "enabled_tools": [],
+        "rag": [],
+        "mcp": []
+      },
+      "sub_agents": []
+    }
+  ],
+  "custom_agents": []
+}

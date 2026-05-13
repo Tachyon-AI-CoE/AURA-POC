@@ -1,9 +1,0 @@
-pytest
-pytest-cov
-mock
-fastapi
-google-cloud-storage
-google-cloud-secret-manager
-requests
-python-dotenv
-PyYAML

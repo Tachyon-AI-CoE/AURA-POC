@@ -1,0 +1,165 @@
+{
+  "scaffold_type": "multiagent_orchestrator",
+  "repo_name": "mm-pdlc-multiagent-poc",
+  "description": "PDLC Multi-Agent Orchestrator — user story creation, test case generation, and Jira ticket creation.",
+  "root_agent": {
+    "multiagent": true,
+    "description": "PDLCOrchestrator is the root agent for the PDLC system. It coordinates the full product development lifecycle workflow by delegating to specialised sub-agents for story creation, test case generation, and Jira ticket creation.",
+    "instruction": "You are the PDLC Orchestrator for the AURA platform.\n\nYour responsibilities:\n1. Receive raw business or functional requirements from the user\n2. Delegate to story_refinement_loop to generate and refine user stories\n3. Once stories are approved, delegate to test_case_generator to create test cases\n4. Finally, delegate to jira_ticket_creator to format everything for Jira\n\nAlways pass the full context from each step to the next.\nIf any step fails, report the failure clearly with the step name and reason.",
+    "input_schema": null,
+    "output_schema": null,
+    "output_key": null,
+    "include_contents": null,
+    "planner": null,
+    "name": "PDLCOrchestrator",
+    "agent_type": "LLMAgent",
+    "model": "gemini-2.0-flash-001",
+    "generate_content_config": {
+      "temperature": 0.2,
+      "top_p": 0.95,
+      "top_k": 3,
+      "max_output_tokens": 2000
+    }
+  },
+  "agents": [
+    {
+      "name": "story_refinement_loop",
+      "description": "Generates and refines user stories from requirements. Loops up to 2 iterations — first drafts the stories, then validates them against INVEST criteria. Exits early when all stories pass quality validation.",
+      "max_iterations": 2,
+      "workflow": true,
+      "rag_enabled": false,
+      "output_key": "story_refinement_output",
+      "include_contents": "default",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "requirements": {
+            "type": "string"
+          },
+          "existing_stories": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "requirements"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "epics": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "epics"
+        ]
+      },
+      "planner": {
+        "type": "llm_planner",
+        "mode": "recursive"
+      },
+      "sub_agents": [
+        {
+          "name": "userstory_agent",
+          "description": "Drafts well-structured user stories grouped into epics from the requirements analysis. Follows standard Agile story format with acceptance criteria and story points.",
+          "instruction": "You are an experienced Agile Product Owner and Story Architect.\n\nFrom the given requirements, generate epics and user stories.\nFor each story use format: 'As a [role], I want [feature], so that [benefit].'\nInclude:\n- id: PROJ-XXX\n- summary: one line title\n- acceptance_criteria: 3-5 testable conditions\n- story_points: 1, 2, 3, 5, 8, or 13\n- priority: Must Have / Should Have / Could Have\n\nIf previous stories and critique are provided, refine them based on the feedback.",
+          "rag_enabled": false,
+          "output_key": "userstory_output",
+          "include_contents": "default",
+          "planner": {
+            "type": "llm_planner",
+            "mode": "direct"
+          },
+          "tools": {
+            "enabled_tools": [],
+            "rag": [],
+            "mcp": []
+          },
+          "agent_type": "LLMAgent",
+          "model": "gemini-2.0-flash-001",
+          "generate_content_config": {
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "top_k": 3,
+            "max_output_tokens": 4000
+          }
+        },
+        {
+          "name": "story_quality_validator",
+          "description": "Validates generated user stories against INVEST criteria and Agile best practices. Signals loop exit when all stories meet the quality bar.",
+          "instruction": "You are a Senior Agile Coach and Story Quality Reviewer.\n\nValidate each story against INVEST criteria:\n- Independent, Negotiable, Valuable, Estimable, Small, Testable\n\nAlso check acceptance criteria are specific and measurable.\n\nOutput:\n{\n  'overall_quality_score': 8.5,\n  'approved': true,\n  'issues': [],\n  'improvement_suggestions': []\n}\n\nSet approved=true only if overall_quality_score >= 7.5.\nIf approved=true the loop exits.",
+          "rag_enabled": false,
+          "output_key": "validation_output",
+          "include_contents": "default",
+          "planner": null,
+          "tools": {
+            "enabled_tools": [],
+            "rag": [],
+            "mcp": []
+          },
+          "agent_type": "LLMAgent",
+          "model": "gemini-2.0-flash-001",
+          "generate_content_config": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "top_k": 3,
+            "max_output_tokens": 2000
+          }
+        }
+      ],
+      "agent_type": "LoopAgent"
+    },
+    {
+      "name": "test_case_generator",
+      "description": "Generates comprehensive test cases from validated user stories. Produces functional, edge case, and negative test scenarios in a structured format ready for QA teams.",
+      "instruction": "You are a Senior QA Engineer and Test Architect.\n\nFrom the validated user stories, generate a complete test suite.\nFor each story generate:\n1. Happy path test cases\n2. Edge case test cases\n3. Negative test cases\n\nFor each test case output:\n{\n  'test_id': 'TC-001',\n  'story_id': 'PROJ-101',\n  'test_type': 'functional | edge | negative',\n  'title': 'short title',\n  'preconditions': ['...'],\n  'test_steps': ['step 1', 'step 2'],\n  'expected_result': '...',\n  'priority': 'P1 | P2 | P3',\n  'automation_candidate': true\n}",
+      "rag_enabled": false,
+      "output_key": "test_cases_output",
+      "include_contents": "default",
+      "planner": null,
+      "tools": {
+        "enabled_tools": [],
+        "rag": [],
+        "mcp": []
+      },
+      "agent_type": "LLMAgent",
+      "model": "gemini-2.0-flash-001",
+      "generate_content_config": {
+        "temperature": 0.3,
+        "top_p": 0.9,
+        "top_k": 3,
+        "max_output_tokens": 4000
+      }
+    },
+    {
+      "name": "jira_ticket_creator",
+      "description": "Formats the validated user stories and test cases into Jira-ready JSON payloads. Produces the exact structure needed to create epics and stories via the Jira REST API.",
+      "instruction": "You are a Jira Project Configuration Specialist.\n\nConvert the validated user stories into Jira REST API payloads.\n\nFor each epic:\n{\n  'fields': {\n    'project': {'key': 'PROJ'},\n    'summary': 'epic summary',\n    'issuetype': {'name': 'Epic'},\n    'priority': {'name': 'High'},\n    'labels': ['aura-generated']\n  }\n}\n\nFor each story:\n{\n  'fields': {\n    'project': {'key': 'PROJ'},\n    'summary': 'story summary',\n    'description': 'full story with acceptance criteria',\n    'issuetype': {'name': 'Story'},\n    'story_points': 3,\n    'labels': ['aura-generated']\n  }\n}\n\nOutput: { 'jira_payloads': { 'epics': [...], 'stories': [...] }, 'total_tickets': 8 }",
+      "rag_enabled": false,
+      "output_key": "jira_output",
+      "include_contents": "default",
+      "planner": null,
+      "tools": {
+        "enabled_tools": [],
+        "rag": [],
+        "mcp": []
+      },
+      "agent_type": "LLMAgent",
+      "model": "gemini-2.0-flash-001",
+      "generate_content_config": {
+        "temperature": 0.1,
+        "top_p": 0.9,
+        "top_k": 3,
+        "max_output_tokens": 3000
+      }
+    }
+  ],
+  "custom_agents": []
+}

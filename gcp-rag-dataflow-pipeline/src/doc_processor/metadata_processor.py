@@ -1,1 +1,0 @@
-#boolean --> true then fetch data from where to get the data &destinaton(bucket)
