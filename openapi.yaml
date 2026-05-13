@@ -1,8 +1,9 @@
+# This file tells clients what API endpoints exist and what to send/receive. Think of it as a menu showing all the services available.
 openapi: 3.1.0
 info:
-  title: AURA-POC — AI Component Scaffolding Service
-  description: |
-    FastAPI service that scaffolds new AI components into a shared GitHub repository.
+  title: AURA-POC — AI Component Scaffolding Service # Version of the OpenAPI standard being used
+  description: | # API name shown in docs
+    FastAPI service that scaffolds new AI components into a shared GitHub repository.  
     Today scaffolds single agents and multiagent orchestrators / workflows.
     RAG pipelines, guardrails, and other AI building blocks are planned future templates.
 
@@ -11,7 +12,7 @@ info:
   license:
     name: Internal
 servers:
-  - url: http://localhost:8000
+  - url: http://localhost:8000 # Where to send requests during local testing
     description: Local development
 
 tags:
@@ -24,6 +25,7 @@ tags:
 
 security: []   # default unauthenticated; /scaffold opts in via securityRequirements below
 
+# Paths section (what endpoints exist):
 paths:
   /healthz:
     get:
@@ -32,13 +34,13 @@ paths:
       description: Returns a fixed payload identifying the service version. Does not check GitHub reachability.
       operationId: getHealthz
       responses:
-        "200":
+        "200": # Success response code
           description: Service is alive.
           headers:
             X-Request-Id:
               $ref: "#/components/headers/XRequestId"
           content:
-            application/json:
+            application/json:   # Response will be JSON
               schema:
                 $ref: "#/components/schemas/HealthResponse"
               examples:
@@ -149,7 +151,7 @@ paths:
                         workflow: true
                         sub_agents: []
       responses:
-        "201":
+        "201": #success response
           description: Scaffold created.
           headers:
             X-Request-Id:
@@ -274,9 +276,9 @@ components:
             $ref: "#/components/schemas/Problem"
 
   schemas:
-    HealthResponse:
+    HealthResponse:      # Defines what /healthz returns
       type: object
-      required: [status, version, timestamp]
+      required: [status, version, timestamp]  # These 3 fields must be present
       additionalProperties: false
       properties:
         status:

@@ -5,7 +5,7 @@ Replaces the scattered ``os.environ.get(...)`` calls that were in
 ``github_app.py`` and ``git_engine.py``. Read these once via :func:`get_settings`
 and inject the result wherever it's needed.
 """
-
+# Reads settings from environment variables (or .env file) in one place.
 from __future__ import annotations
 
 from pydantic import Field, SecretStr, field_validator
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     cors_allowlist: list[str] = Field(default_factory=list)
 
     # ---- Transitional fallback (FR-11) ----
-    agent_input_path: str = Field(default="inputs/agent_input.json")
+    agent_input_path: str = Field(default="inputs/agent_input.json") #if we dont give any request body it falls back to this file for input 
 
     # ---- Logging ----
     log_level: str = Field(default="INFO")

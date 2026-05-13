@@ -1,5 +1,5 @@
 """ScaffoldResponse schema."""
-
+#This defines the shape of success response when POST /scaffold works.
 from __future__ import annotations
 
 from typing import Literal

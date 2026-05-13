@@ -81,11 +81,11 @@ AURA-POC/
 ├── pyproject.toml, uv.lock, .gitignore
 ├── .github/workflows/ci.yml
 ├── app/
-│   ├── main.py, settings.py, logging.py, deps.py, errors.py, middleware.py
-│   ├── routers/{health,templates,scaffold}.py
+│   ├── main.py, settings.py, logging.py, bearer_auth.py, exceptions.py, middleware.py
+│   ├── routers/{health,templates,scaffold_routes}.py
 │   ├── services/{github_auth,scaffold_pipeline,agent_config_generator}.py
 │   ├── core/template_registry.py
-│   └── schemas/{agent_input,scaffold,errors}.py
+│   └── schemas/{agent_input,scaffold_schema,exception_schema}.py
 ├── tests/
 └── inputs/   # example scaffold payloads (also used as test fixtures)
 ```

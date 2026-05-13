@@ -12,7 +12,7 @@ Private key precedence (defined in ``app.settings.Settings``):
 Behavior preserved verbatim from the pre-SDD ``github_app.py``; configuration
 is now read from :class:`app.settings.Settings` instead of ``os.environ``.
 """
-
+# Gets a temporary permission token to act as a GitHub App and call GitHub's API.
 from __future__ import annotations
 
 import base64

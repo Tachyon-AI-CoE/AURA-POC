@@ -13,7 +13,12 @@ Generated components are pushed as subfolders inside one shared repo:
         src/...
 
 Uses the GitHub Contents API throughout — no git binary needed.
-"""
+# """
+# the main workflow that creates a new component by:
+
+# Downloading skeleton files from GitHub
+# Writing configuration to JSON
+# Pushing everything to the shared repo
 
 from __future__ import annotations
 
@@ -32,7 +37,7 @@ from pathlib import Path
 
 import requests
 
-from app.errors import AgentAlreadyExistsError, ScaffoldFailedError
+from app.exceptions import AgentAlreadyExistsError, ScaffoldFailedError
 from app.schemas.agent_input import AgentInput
 from app.settings import get_settings
 
@@ -61,7 +66,8 @@ def _headers(iat_token: str) -> dict[str, str]:
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-
+## Checks if "aura-generated-agents" repo exists
+# If not, creates it
 def ensure_generated_agents_repo(iat_token: str) -> str:
     """Ensure the shared ``aura-generated-agents`` repo exists in the org.
 
@@ -102,7 +108,7 @@ def ensure_generated_agents_repo(iat_token: str) -> str:
     resp.raise_for_status()
     raise ScaffoldFailedError(f"Unexpected response from GitHub: {resp.status_code}")
 
-
+#: Check if component/repo already exists, This prevents overwriting
 def _check_agent_folder_exists(agent_folder: str, iat_token: str) -> bool:
     """Return True if ``<agent_folder>/config`` already exists in the shared repo."""
     settings = get_settings()
@@ -113,12 +119,12 @@ def _check_agent_folder_exists(agent_folder: str, iat_token: str) -> bool:
     resp = requests.get(url, headers=_headers(iat_token), timeout=15)
     return bool(resp.status_code == 200)
 
-
+#Download skeleton from monorepo
 def _download_subfolder_from_monorepo(
-    monorepo_name: str,
+    monorepo_name: str, # From template_repo_name(AURA-POC in here)
     subfolder: str,
     iat_token: str,
-    dest_dir: str,
+    dest_dir: str, # # Temp local folder(test repo loc)
 ) -> None:
     """Download the monorepo zip and extract only ``<subfolder>/skeleton/`` into ``dest_dir``."""
     settings = get_settings()
@@ -246,7 +252,7 @@ def _safe_rmtree(path: str) -> None:
 
     shutil.rmtree(path, onerror=_on_error)
 
-
+#main func
 def scaffold_new_agent(
     template_repo_name: tuple[str, str],
     agent_input: AgentInput,
@@ -297,6 +303,7 @@ def _run_scaffold(
         config_dir = Path(workdir) / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
 
+#  Write config file(i.e agents-config.json) into temp local folder(test repo loc)
         agent_config = agent_input.model_dump(
             mode="json",
             exclude=_SCAFFOLDER_KEYS,
@@ -308,6 +315,8 @@ def _run_scaffold(
 
         logger.info("agents-config.json written into /config")
 
+
+#  Push files to GitHub
         _push_files_into_subfolder(
             agent_folder=repo_name,
             workdir=workdir,

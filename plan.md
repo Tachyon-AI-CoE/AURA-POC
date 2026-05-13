@@ -20,14 +20,14 @@ AURA-POC/
 │   ├── main.py                          # FastAPI app factory + middleware wiring
 │   ├── settings.py                      # pydantic-settings, env-driven
 │   ├── logging.py                       # JSON logger + request_id contextvar
-│   ├── deps.py                          # auth + settings DI providers
-│   ├── errors.py                        # typed domain exceptions + problem+json handlers
+│   ├── bearer_auth.py                   # auth + settings DI providers
+│   ├── exceptions.py                    # typed domain exceptions + problem+json handlers
 │   ├── middleware.py                    # RequestIDMiddleware
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── health.py                    # GET /healthz                       (FR-1)
 │   │   ├── templates.py                 # GET /templates                     (FR-2)
-│   │   └── scaffold.py                  # POST /scaffold                     (FR-3..FR-11)
+│   │   └── scaffold_routes.py           # POST /scaffold                     (FR-3..FR-11)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── github_auth.py               # JWT mint + IAT cache               (FR-13)
@@ -39,8 +39,8 @@ AURA-POC/
 │   └── schemas/
 │       ├── __init__.py
 │       ├── agent_input.py               # RootAgent, SubAgent, GenerateContentConfig, AgentInput
-│       ├── scaffold.py                  # ScaffoldRequest, ScaffoldResponse
-│       └── errors.py                    # Problem (RFC 7807)
+│       ├── scaffold_schema.py           # ScaffoldRequest, ScaffoldResponse
+│       └── exception_schema.py          # Problem (RFC 7807)
 ├── tests/
 │   ├── conftest.py
 │   ├── test_health.py
@@ -61,15 +61,15 @@ AURA-POC/
 
 | Module | Responsibility | May import |
 | --- | --- | --- |
-| `app/routers/*` | Thin HTTP layer. Parse input, call a service, shape output. | `fastapi`, `app.schemas`, `app.services`, `app.deps`, `app.errors` |
-| `app/services/*` | Pure business logic (GitHub auth, scaffold pipeline, JSON→YAML transform). **No FastAPI imports.** Raise typed exceptions from `app.errors`. | `app.schemas`, `app.core`, `app.errors`, stdlib, `requests`, `PyJWT`, `PyYAML` |
+| `app/routers/*` | Thin HTTP layer. Parse input, call a service, shape output. | `fastapi`, `app.schemas`, `app.services`, `app.bearer_auth`, `app.exceptions` |
+| `app/services/*` | Pure business logic (GitHub auth, scaffold pipeline, JSON→YAML transform). **No FastAPI imports.** Raise typed exceptions from `app.exceptions`. | `app.schemas`, `app.core`, `app.exceptions`, stdlib, `requests`, `PyJWT`, `PyYAML` |
 | `app/core/*` | Pure constants and pure functions. No I/O. | stdlib only |
 | `app/schemas/*` | Pydantic v2 I/O models with `extra="forbid"`. Separate Request/Response variants. | `pydantic` only |
-| `app/errors.py` | Typed domain exceptions and the FastAPI exception handlers that emit problem+json. | `fastapi`, `pydantic`, `app.schemas.errors` |
+| `app/exceptions.py` | Typed domain exceptions and the FastAPI exception handlers that emit problem+json. | `fastapi`, `pydantic`, `app.schemas.exception_schema` |
 | `app/middleware.py` | `RequestIDMiddleware` (ULID generator, contextvar binding, `X-Request-Id` echo); per-request log line on response. | `fastapi`, `starlette`, `app.logging` |
 | `app/settings.py` | `Settings(BaseSettings)` — single source for all env-driven config. | `pydantic_settings`, `pydantic` |
 | `app/logging.py` | JSON logger factory + `request_id` contextvar. | stdlib (`logging`, `contextvars`, `json`) |
-| `app/deps.py` | DI providers: `get_settings`, `require_api_key`. | `fastapi`, `app.settings`, `app.errors` |
+| `app/bearer_auth.py` | DI providers: `get_settings`, `require_api_key`. | `fastapi`, `app.settings`, `app.exceptions` |
 | `app/main.py` | `create_app()` factory: instantiate FastAPI, register middleware, mount routers, register exception handlers. | everything in `app/` |
 
 ## 3. Dependency-injection strategy
@@ -104,7 +104,7 @@ Coverage gate: 85% statement, enforced with `pytest --cov-fail-under=85`. The th
 | --- | --- | --- | --- |
 | R1 | **File-by-file Contents API push leaves orphaned subfolders on failure.** Mid-flight network error → partial push. | Existence check before push (FR-6). Failure path logs the partial state with `request_id`. | Switch to Git Trees + Commit API for atomic push. |
 | R2 | **Race on the existence check.** Two concurrent scaffolds for the same `repo_name` both pass and corrupt each other. | Documented limitation. Single-instance deploy mitigates risk in v0.1. | Short-lived distributed lock keyed on `repo_name`, or a unique-name index. |
-| R3 | **Private-key leakage via logs.** Raw exceptions from PyJWT can include key material. | All exception handlers in `errors.py` whitelist what reaches the client. CLAUDE.md §4 enforces the rule. Test `test_github_auth.py` asserts no key material in log output. | None — this stays. |
+| R3 | **Private-key leakage via logs.** Raw exceptions from PyJWT can include key material. | All exception handlers in `exceptions.py` whitelist what reaches the client. CLAUDE.md §4 enforces the rule. Test `test_github_auth.py` asserts no key material in log output. | None — this stays. |
 | R4 | **IAT expiry mid-push.** A scaffold that runs longer than the IAT's residual lifetime fails halfway through. | 5-minute refresh window already in [github_app.py:153-155](./github_app.py#L153-L155); preserved. | Mid-flight token refresh hook in the Contents API loop. |
 | R5 | **Spec/code drift.** Schema changes in code without OpenAPI update. | `schemathesis` contract check in CI fails the build on drift. | None — this stays. |
 | R6 | **Test/prod divergence via over-mocking.** GitHub mocks pass but real API doesn't. | A separate (manual, optional) smoke target hits a sandbox repo. Not a PR gate to avoid burning tokens. | Scheduled nightly smoke against a sandbox org. |

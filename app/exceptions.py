@@ -4,6 +4,7 @@ Typed domain exceptions and FastAPI exception handlers.
 Services raise these exceptions; the handlers registered in app.main convert
 them to RFC 7807 application/problem+json responses.
 """
+#Defines custom errors and converts them to nice JSON error responses.
 
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.logging import request_id_var
-from app.schemas.errors import Problem
+from app.schemas.exception_schema import Problem
 
 logger = logging.getLogger("aura.errors")
 

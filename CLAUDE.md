@@ -18,7 +18,7 @@ You are operating inside the AURA-POC codebase: a FastAPI service that scaffolds
 
 ## 3. Architecture rules
 - Layered: **routers → services → core/schemas**. Direction is strict.
-- Routers ([app/routers/](./app/routers)): thin. Parse input, call a service, shape output. Never call GitHub or filesystem directly. Never raise `HTTPException` — raise typed exceptions from `app/errors.py` so the global handler emits problem+json.
+- Routers ([app/routers/](./app/routers)): thin. Parse input, call a service, shape output. Never call GitHub or filesystem directly. Never raise `HTTPException` — raise typed exceptions from `app/exceptions.py` so the global handler emits problem+json.
 - Services ([app/services/](./app/services)): pure business logic. **NO `from fastapi import ...` allowed.** This is asserted in tests.
 - Core ([app/core/](./app/core)): pure constants and pure functions (e.g., `template_registry.py`). No I/O.
 - Schemas ([app/schemas/](./app/schemas)): Pydantic v2 I/O models with `extra="forbid"`. Separate `*Request` / `*Response` variants — never reuse a model across input and output.
@@ -36,7 +36,7 @@ You are operating inside the AURA-POC codebase: a FastAPI service that scaffolds
 
 ## 5. Error handling contract
 - All non-2xx responses use `application/problem+json` (RFC 7807) with extensions `code` (machine-readable, SCREAMING_SNAKE_CASE) and `request_id`.
-- Domain errors are raised as typed exceptions in services (`TemplateNotFoundError`, `AgentAlreadyExistsError`, `GitHubAuthError`, `ScaffoldFailedError`, `InvalidAgentInputError`) and mapped to HTTP responses in [app/errors.py](./app/errors.py). Routers do not raise `HTTPException` directly.
+- Domain errors are raised as typed exceptions in services (`TemplateNotFoundError`, `AgentAlreadyExistsError`, `GitHubAuthError`, `ScaffoldFailedError`, `InvalidAgentInputError`) and mapped to HTTP responses in [app/exceptions.py](./app/exceptions.py). Routers do not raise `HTTPException` directly.
 - Never leak stack traces or raw GitHub API responses to clients. Log them with `request_id` instead.
 
 ## 6. Observability

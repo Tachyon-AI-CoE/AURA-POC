@@ -37,8 +37,8 @@ Ordered checklist derived from [`plan.md`](./plan.md). Each task is one line and
 - [x] T2.9  Smoke test: `app.main` imports; `/healthz` returns 200; `/templates` returns the 6 registered types — confirmed via FastAPI `TestClient`
 
 ## M3 — Error contract (problem+json + request_id)
-- [x] T3.1  Create `app/schemas/errors.py` with the `Problem` pydantic model                                                                              (FR-9)
-- [x] T3.2  Create `app/errors.py` with typed exceptions: `TemplateNotFoundError`, `AgentAlreadyExistsError`, `GitHubAuthError`, `ScaffoldFailedError`, `InvalidAgentInputError`, `UnauthorizedError`
+- [x] T3.1  Create `app/schemas/exception_schema.py` with the `Problem` pydantic model                                                                     (FR-9)
+- [x] T3.2  Create `app/exceptions.py` with typed exceptions: `TemplateNotFoundError`, `AgentAlreadyExistsError`, `GitHubAuthError`, `ScaffoldFailedError`, `InvalidAgentInputError`, `UnauthorizedError`
 - [x] T3.3  Register FastAPI exception handlers in `app/main.py` that emit `application/problem+json` with `code` + `request_id`                          (FR-9)
 - [x] T3.4  Create `app/middleware.py` with `RequestIDMiddleware` (UUID generation, contextvar bind, `X-Request-Id` echo)                                 (FR-10)
 - [x] T3.5  Replace ad-hoc `HTTPException` raises in routers with typed exception raises in services
@@ -46,14 +46,14 @@ Ordered checklist derived from [`plan.md`](./plan.md). Each task is one line and
 
 ## M4 — Request schemas (Pydantic v2, `extra="forbid"`)
 - [x] T4.1  Create `app/schemas/agent_input.py`: `GenerateContentConfig`, `RootAgent`, `Agent`, `SubAgent`, `AgentInput` derived from `inputs/*.json`     (FR-3)
-- [x] T4.2  Create `app/schemas/scaffold.py`: `ScaffoldResponse`                                                                                          (FR-3)
+- [x] T4.2  Create `app/schemas/scaffold_schema.py`: `ScaffoldResponse`                                                                                   (FR-3)
 - [x] T4.3  `POST /scaffold` accepts a JSON body; routing wires the schema to the service                                                                 (FR-3)
 - [x] T4.4  Implemented `AGENT_INPUT_PATH` fallback when body is empty; emits deprecation log warning                                                     (FR-11)
 - [x] T4.5  `extra="forbid"` at `AgentInput` level rejects unknown top-level keys with 422 problem+json                                                   (FR-9)
 
 ## M5 — Auth on `/scaffold`
 - [x] T5.1  `scaffold_api_key: SecretStr | None` already in `Settings` in `app/settings.py`                                                               (FR-4)
-- [x] T5.2  Create `bearer_auth` dependency in `app/deps.py` (bearer token, `secrets.compare_digest`)                                                    (FR-4)
+- [x] T5.2  Create `bearer_auth` dependency in `app/bearer_auth.py` (bearer token, `secrets.compare_digest`)                                             (FR-4)
 - [x] T5.3  Applied `Depends(bearer_auth)` to `POST /scaffold` only — `/healthz` and `/templates` unauthenticated
 - [x] T5.4  Missing / wrong token returns 401 problem+json with code `UNAUTHORIZED`                                                                       (FR-4)
 

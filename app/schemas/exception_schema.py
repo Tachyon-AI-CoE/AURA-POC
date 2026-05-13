@@ -1,5 +1,5 @@
 """RFC 7807 Problem Details model."""
-
+#This defines the shape of error responses (RFC 7807 standard).
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict

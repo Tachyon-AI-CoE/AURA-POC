@@ -11,6 +11,7 @@ Each template is a subfolder within that repo. To add a new component type:
 3. Add a test case in ``tests/test_template_registry.py``.
 """
 
+# mapping file which go download template acc to selection
 from __future__ import annotations
 
 # Single source repo containing all scaffolder templates as subfolders.
@@ -25,7 +26,7 @@ TEMPLATE_REGISTRY: dict[str, str] = {
     "single_agent": "gcp-agent",
     "single_agent_api": "gcp-agent-api/skeleton",
     "agent_clientapp": "gcp-agent-clientapp",
-    "rag_pipeline": "gcp-rag-dataflow-pipeline",  # future / not production
+    "rag_pipeline": "gcp-rag-dataflow-pipeline",  
 }
 
 
@@ -34,7 +35,7 @@ def get_template_repo(scaffold_type: str) -> tuple[str, str]:
 
     Raises :class:`app.errors.TemplateNotFoundError` if the type is not registered.
     """
-    from app.errors import TemplateNotFoundError  # local import avoids circular at module load
+    from app.exceptions import TemplateNotFoundError  # local import avoids circular at module load
 
     subfolder = TEMPLATE_REGISTRY.get(scaffold_type)
     if not subfolder:
